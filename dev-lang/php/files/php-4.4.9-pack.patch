@@ -1,0 +1,2467 @@
+==============================================================================
+Original: php-4-apache2handler_volatile_vars_typos.patch
+==============================================================================
+--- sapi/apache2handler/sapi_apache2.c	2006-08-09 12:31:49.000000000 +0200
++++ sapi/apache2handler/sapi_apache2.c	2006-08-09 12:54:44.000000000 +0200
+@@ -457,12 +457,12 @@
+ 
+ static int php_handler(request_rec *r)
+ {
+-	php_struct *ctx;
++	php_struct * volatile ctx;
+ 	void *conf;
+-	apr_bucket_brigade *brigade;
++	apr_bucket_brigade * volatile brigade;
+ 	apr_bucket *bucket;
+ 	apr_status_t rv;
+-	request_rec *parent_req = NULL;
++	request_rec * volatile parent_req = NULL;
+ 	TSRMLS_FETCH();
+ 
+ #define PHPAP_INI_OFF php_apache_ini_dtor(r, parent_req TSRMLS_CC);
+==============================================================================
+Original: php-4-prefork-peruser-itk.patch
+==============================================================================
+--- sapi/apache2filter/config.m4	2006-02-08 22:13:06.000000000 +0100
++++ sapi/apache2filter/config.m4	2006-02-08 22:14:05.000000000 +0100
+@@ -115,7 +115,7 @@
+     ;;
+   esac
+ 
+-  if test "$APXS_MPM" != "prefork"; then
++  if test "$APXS_MPM" != "prefork" && test "$APXS_MPM" != "peruser" && test "$APXS_MPM" != "itk"; then
+     PHP_BUILD_THREAD_SAFE
+   fi
+   AC_MSG_RESULT(yes)
+--- sapi/apache2handler/config.m4	2006-02-08 22:13:12.000000000 +0100
++++ sapi/apache2handler/config.m4	2006-02-08 22:14:43.000000000 +0100
+@@ -114,7 +114,7 @@
+     ;;
+   esac
+ 
+-  if test "$APXS_MPM" != "prefork"; then
++  if test "$APXS_MPM" != "prefork" && test "$APXS_MPM" != "peruser" && test "$APXS_MPM" != "itk"; then
+     PHP_BUILD_THREAD_SAFE
+   fi
+   AC_MSG_RESULT(yes)
+==============================================================================
+Original: php-4.4.8-fastbuild.patch
+==============================================================================
+--- acinclude.m4	2005-09-14 22:39:22.000000000 +0200
++++ acinclude.m4	2005-09-14 22:39:54.000000000 +0200
+@@ -84,7 +84,7 @@
+ dnl
+ dnl which array to append to?
+ AC_DEFUN([PHP_ADD_SOURCES],[
+-  PHP_ADD_SOURCES_X($1, $2, $3, ifelse($4,cli,PHP_CLI_OBJS,ifelse($4,sapi,PHP_SAPI_OBJS,PHP_GLOBAL_OBJS)))
++  PHP_ADD_SOURCES_X($1, $2, $3, ifelse($4,cli,PHP_CLI_OBJS,ifelse($4,sapi,PHP_SAPI_OBJS,ifelse($4,cgi,PHP_CGI_OBJS,PHP_GLOBAL_OBJS))))
+ ])
+ dnl
+ dnl _PHP_ASSIGN_BUILD_VARS(type)
+--- configure.in	2005-07-11 08:45:09.000000000 +0100
++++ configure.in	2005-09-01 08:00:54.000000000 +0100
+@@ -1242,20 +1242,20 @@
+ INLINE_CFLAGS="$INLINE_CFLAGS $standard_libtool_flag"
+ CXXFLAGS="$CXXFLAGS $standard_libtool_flag"
+ 
+-all_targets='$(OVERALL_TARGET) $(PHP_MODULES) $(PHP_CLI_TARGET)'
++all_targets='$(OVERALL_TARGET) $(PHP_MODULES) $(PHP_CLI_TARGET) $(PHP_CGI_TARGET)'
+ install_targets="$install_modules $install_pear install-build install-headers install-programs"
+ 
+-case $PHP_SAPI in
+-  cgi)
+-    install_targets="install-sapi $install_targets"
+-    ;;
+-  cli)
+-    install_targets="$PHP_INSTALL_CLI_TARGET $install_targets"
+-    ;;
+-  *)
+-    install_targets="install-sapi $PHP_INSTALL_CLI_TARGET $install_targets"
+-    ;;
+-esac
++if test "$PHP_SAPI_CGI" != "no" ; then
++  install_targets="$PHP_INSTALL_CGI_TARGET $install_targets"
++fi
++
++if test "$PHP_SAPI_CLI" != "no" ; then
++  install_targets="$PHP_INSTALL_CLI_TARGET $install_targets"
++fi
++
++if test "$PHP_SAPI" != "default" ; then
++  install_targets="install-sapi $PHP_INSTALL_CLI_TARGET $PHP_INSTALL_CGI_TARGET $install_targets"
++fi
+ 
+ PHP_SUBST(all_targets)
+ PHP_SUBST(install_targets)
+--- sapi/cgi/Makefile.frag	2003-07-02 02:06:29.000000000 +0100
++++ sapi/cgi/Makefile.frag	2005-09-01 08:03:20.000000000 +0100
+@@ -1,2 +1,6 @@
+-$(SAPI_CGI_PATH): $(PHP_GLOBAL_OBJS) $(PHP_SAPI_OBJS)
++$(SAPI_CGI_PATH): $(PHP_GLOBAL_OBJS) $(PHP_CGI_OBJS)
+ 	$(BUILD_CGI)
++
++install-cgi: $(SAPI_CGI_PATH)
++	@echo "Installing PHP CGI binary:        $(INSTALL_ROOT)$(bindir)/"
++	@$(INSTALL_CGI)
+--- sapi/cgi/config9.m4	2004-12-30 07:02:18.000000000 +0000
++++ sapi/cgi/config9.m4	2005-09-01 08:05:08.000000000 +0100
+@@ -81,93 +81,106 @@
+ ])
+ 
+ 
+-if test "$PHP_SAPI" = "default"; then
+-  AC_MSG_CHECKING(for CGI build)
+-  if test "$PHP_SAPI_CGI" != "no"; then
+-    AC_MSG_RESULT(yes)
+-
+-    PHP_ADD_MAKEFILE_FRAGMENT($abs_srcdir/sapi/cgi/Makefile.frag)
+-    case $host_alias in
+-      *cygwin* )
+-        SAPI_CGI_PATH=sapi/cgi/php.exe
+-        ;;
+-      * )
+-        SAPI_CGI_PATH=sapi/cgi/php
+-        ;;
+-    esac
+-    PHP_SUBST(SAPI_CGI_PATH)
+-
+-    PHP_TEST_WRITE_STDOUT
+-
+-    AC_MSG_CHECKING(whether to force Apache CGI redirect)
+-    if test "$PHP_FORCE_CGI_REDIRECT" = "yes"; then
+-      REDIRECT=1
+-    else
+-      REDIRECT=0
+-    fi
+-    AC_DEFINE_UNQUOTED(FORCE_CGI_REDIRECT,$REDIRECT,[ ])
+-    AC_MSG_RESULT($PHP_FORCE_CGI_REDIRECT)
++AC_MSG_CHECKING(for CGI build)
++if test "$PHP_SAPI_CGI" != "no"; then
++  AC_MSG_RESULT(yes)
++
++  PHP_ADD_MAKEFILE_FRAGMENT($abs_srcdir/sapi/cgi/Makefile.frag)
++  case $host_alias in
++    *cygwin* )
++      SAPI_CGI_PATH=sapi/cgi/php.exe
++      ;;
++    * )
++      SAPI_CGI_PATH=sapi/cgi/php
++      ;;
++  esac
++  PHP_SUBST(SAPI_CGI_PATH)
+ 
++  PHP_TEST_WRITE_STDOUT
+ 
+-    AC_MSG_CHECKING(whether to discard path_info + path_translated)
+-    if test "$PHP_DISCARD_PATH" = "yes"; then
+-      DISCARD_PATH=1
+-    else
+-      DISCARD_PATH=0
+-    fi
+-    AC_DEFINE_UNQUOTED(DISCARD_PATH, $DISCARD_PATH, [ ])
+-    AC_MSG_RESULT($PHP_DISCARD_PATH)
++  AC_MSG_CHECKING(whether to force Apache CGI redirect)
++  if test "$PHP_FORCE_CGI_REDIRECT" = "yes"; then
++    REDIRECT=1
++  else
++    REDIRECT=0
++  fi
++  AC_DEFINE_UNQUOTED(FORCE_CGI_REDIRECT,$REDIRECT,[ ])
++  AC_MSG_RESULT($PHP_FORCE_CGI_REDIRECT)
+ 
+-    AC_MSG_CHECKING(whether to enable path info checking)
+-    if test "$PHP_ENABLE_PATHINFO_CHECK" = "yes"; then
+-      ENABLE_PATHINFO_CHECK=1
+-    else
+-      ENABLE_PATHINFO_CHECK=0
+-    fi
+-    AC_DEFINE_UNQUOTED(ENABLE_PATHINFO_CHECK, $ENABLE_PATHINFO_CHECK, [ ])
+-    AC_MSG_RESULT($PHP_ENABLE_PATHINFO_CHECK)
+ 
+-    AC_MSG_CHECKING(whether to enable fastcgi support)
+-    PHP_LIBFCGI_DIR="$abs_srcdir/sapi/cgi/libfcgi"
+-    if test -z $PHP_LIBFCGI_DIR; then
+-      echo "$PHP_LIBFCGI_DIR does not exist"
+-      exit 1
+-    fi
+-    if test "$PHP_ENABLE_FASTCGI" = "yes"; then
+-      PHP_ADD_BUILD_DIR($abs_builddir/sapi/cgi/libfcgi)
+-      PHP_FASTCGI=1
+-      PHP_FCGI_FILES="libfcgi/fcgi_stdio.c libfcgi/fcgiapp.c libfcgi/os_unix.c"
+-      PHP_FCGI_INCLUDE="-I$PHP_LIBFCGI_DIR/include"
+-      PHP_FCGI_STATIC=1
+-    else
+-      PHP_FASTCGI=0
+-      PHP_FCGI_FILES=""
+-      PHP_FCGI_INCLUDE=""
+-      PHP_FCGI_STATIC=0
+-    fi
+-    AC_DEFINE_UNQUOTED(PHP_FASTCGI, $PHP_FASTCGI, [ ])
+-    AC_DEFINE_UNQUOTED(PHP_FCGI_STATIC, $PHP_FCGI_STATIC, [ ])
+-    AC_MSG_RESULT($PHP_ENABLE_FASTCGI)
+-
+-    INSTALL_IT="@echo \"Installing PHP CGI into: \$(INSTALL_ROOT)\$(bindir)/\"; \$(INSTALL) -m 0755 \$(SAPI_CGI_PATH) \$(INSTALL_ROOT)\$(bindir)/\$(program_prefix)php\$(program_suffix)"
+-    PHP_SELECT_SAPI(cgi, program, $PHP_FCGI_FILES cgi_main.c getopt.c, $PHP_FCGI_INCLUDE, '$(SAPI_CGI_PATH)')
+-
+-    case $host_alias in
+-      *darwin*)
+-        BUILD_CGI="\$(CC) \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(NATIVE_RPATHS) \$(PHP_GLOBAL_OBJS:.lo=.o) \$(PHP_SAPI_OBJS:.lo=.o) \$(PHP_FRAMEWORKS) \$(EXTRA_LIBS) \$(ZEND_EXTRA_LIBS) -o \$(SAPI_CGI_PATH)"
++  AC_MSG_CHECKING(whether to discard path_info + path_translated)
++  if test "$PHP_DISCARD_PATH" = "yes"; then
++    DISCARD_PATH=1
++  else
++    DISCARD_PATH=0
++  fi
++  AC_DEFINE_UNQUOTED(DISCARD_PATH, $DISCARD_PATH, [ ])
++  AC_MSG_RESULT($PHP_DISCARD_PATH)
++
++  AC_MSG_CHECKING(whether to enable path info checking)
++  if test "$PHP_ENABLE_PATHINFO_CHECK" = "yes"; then
++    ENABLE_PATHINFO_CHECK=1
++  else
++    ENABLE_PATHINFO_CHECK=0
++  fi
++  AC_DEFINE_UNQUOTED(ENABLE_PATHINFO_CHECK, $ENABLE_PATHINFO_CHECK, [ ])
++  AC_MSG_RESULT($PHP_ENABLE_PATHINFO_CHECK)
++
++  AC_MSG_CHECKING(whether to enable fastcgi support)
++  PHP_LIBFCGI_DIR="$abs_srcdir/sapi/cgi/libfcgi"
++  if test -z $PHP_LIBFCGI_DIR; then
++    echo "$PHP_LIBFCGI_DIR does not exist"
++    exit 1
++  fi
++  if test "$PHP_ENABLE_FASTCGI" = "yes"; then
++    PHP_ADD_BUILD_DIR($abs_builddir/sapi/cgi/libfcgi)
++    PHP_FASTCGI=1
++    PHP_FCGI_FILES="libfcgi/fcgi_stdio.c libfcgi/fcgiapp.c libfcgi/os_unix.c"
++    PHP_FCGI_INCLUDE="-I$PHP_LIBFCGI_DIR/include"
++    PHP_FCGI_STATIC=1
++  else
++    PHP_FASTCGI=0
++    PHP_FCGI_FILES=""
++    PHP_FCGI_INCLUDE=""
++    PHP_FCGI_STATIC=0
++  fi
++  AC_DEFINE_UNQUOTED(PHP_FASTCGI, $PHP_FASTCGI, [ ])
++  AC_DEFINE_UNQUOTED(PHP_FCGI_STATIC, $PHP_FCGI_STATIC, [ ])
++  AC_MSG_RESULT($PHP_ENABLE_FASTCGI)
++
++  INSTALL_CGI="@echo \"Installing PHP CGI into: \$(INSTALL_ROOT)\$(bindir)/\"; \$(INSTALL) -m 0755 \$(SAPI_CGI_PATH) \$(INSTALL_ROOT)\$(bindir)/\$(program_prefix)php-cgi\$(program_suffix)"
++  PHP_ADD_SOURCES(sapi/cgi, $PHP_FCGI_FILES cgi_main.c getopt.c, $PHP_FCGI_INCLUDE, cgi)
++  PHP_ADD_SOURCES(/main, internal_functions.c, , cgi)
++
++  case $host_alias in
++    *darwin*)
++      BUILD_CGI="\$(CC) \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(NATIVE_RPATHS) \$(PHP_GLOBAL_OBJS:.lo=.o) \$(PHP_CGI_OBJS:.lo=.o) \$(PHP_FRAMEWORKS) \$(EXTRA_LIBS) \$(ZEND_EXTRA_LIBS) -o \$(SAPI_CGI_PATH)"
+       ;;
+-      *)
+-        BUILD_CGI="\$(LIBTOOL) --mode=link \$(CC) -export-dynamic \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(PHP_RPATHS) \$(PHP_GLOBAL_OBJS) \$(PHP_SAPI_OBJS) \$(EXTRA_LIBS) \$(ZEND_EXTRA_LIBS) -o \$(SAPI_CGI_PATH)"
++    *)
++      BUILD_CGI="\$(LIBTOOL) --mode=link \$(CC) -export-dynamic \$(CFLAGS_CLEAN) \$(EXTRA_CFLAGS) \$(EXTRA_LDFLAGS_PROGRAM) \$(LDFLAGS) \$(PHP_RPATHS) \$(PHP_GLOBAL_OBJS) \$(PHP_CGI_OBJS) \$(EXTRA_LIBS) \$(ZEND_EXTRA_LIBS) -o \$(SAPI_CGI_PATH)"
+       ;;
+-    esac
++  esac
+ 
+-    PHP_SUBST(BUILD_CGI)
++  PHP_CGI_TARGET="\$(SAPI_CGI_PATH)"
++  PHP_INSTALL_CGI_TARGET="install-cgi"
+ 
+-  elif test "$PHP_SAPI_CLI" != "no"; then
+-    AC_MSG_RESULT(no)
+-    OVERALL_TARGET=
+-    PHP_SAPI=cli   
+-  else
+-    AC_MSG_ERROR([No SAPIs selected.])  
++  PHP_SUBST(BUILD_CGI)
++  PHP_SUBST(INSTALL_CGI)
++  PHP_SUBST(PHP_CGI_OBJS)
++  PHP_SUBST(PHP_CGI_TARGET)
++  PHP_SUBST(PHP_INSTALL_CGI_TARGET)
++
++  if test "$PHP_SAPI" = "default" ; then
++    PHP_BUILD_PROGRAM($SAPI_CGI_PATH)
++  fi
++else
++  AC_MSG_RESULT(no)
++  if test "$PHP_SAPI" = "default" ; then
++    if test "$PHP_SAPI_CLI" != "no" ; then
++      OVERALL_TARGET=
++      PHP_SAPI=cli
++    else
++      AC_MSG_ERROR([No SAPIs selected.])
++    fi
+   fi
+ fi
+==============================================================================
+Original: php-4.4.8-multilib-search-path.patch
+Original: php-4-iodbc-config.patch
+Original: php-4-mysql-ztsclientlib.patch (part)
+==============================================================================
+--- acinclude.m4	2005-12-19 23:29:11.000000000 +0100
++++ acinclude.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -194,7 +194,7 @@
+   unset ac_new_flags
+   for i in [$]$1; do
+     case [$]i in
+-    -L/usr/lib|-L/usr/lib/[)] ;;
++    -L/usr/lib|-L/usr/lib/|-L/usr/lib64|-L/usr/lib64/[)] ;;
+     *[)] ac_new_flags="[$]ac_new_flags [$]i" ;;
+     esac
+   done
+@@ -649,7 +649,7 @@
+ ])
+ 
+ AC_DEFUN([PHP_PROG_SENDMAIL],[
+-PHP_ALT_PATH=/usr/bin:/usr/sbin:/usr/etc:/etc:/usr/ucblib:/usr/lib
++PHP_ALT_PATH=/usr/bin:/usr/sbin:/usr/etc:/etc:/usr/ucblib:/usr/lib:/usr/lib64
+ AC_PATH_PROG(PROG_SENDMAIL, sendmail,[], $PATH:$PHP_ALT_PATH)
+ if test -n "$PROG_SENDMAIL"; then
+   AC_DEFINE(HAVE_SENDMAIL,1,[whether you have sendmail])
+@@ -860,7 +860,9 @@
+ dnl add a library to linkpath/runpath
+ dnl
+ AC_DEFUN([PHP_ADD_LIBPATH],[
+-  if test "$1" != "/usr/lib"; then
++  case x$1 in
++  x/usr/lib|x/usr/lib64) ;;
++  *)
+     PHP_EXPAND_PATH($1, ai_p)
+     ifelse([$2],,[
+       _PHP_ADD_LIBPATH_GLOBAL([$ai_p])
+@@ -870,8 +872,8 @@
+       else
+         _PHP_ADD_LIBPATH_GLOBAL([$ai_p])
+       fi
+-    ])
+-  fi
++    ]) ;;
++  esac
+ ])
+ 
+ dnl
+@@ -1675,15 +1677,20 @@
+     fi
+ 
+     for i in $PHP_KERBEROS; do
+-      if test -f $i/lib/libkrb5.a || test -f $i/lib/libkrb5.$SHLIB_SUFFIX_NAME; then
++      if test -f $i/lib/libkrb5.a -o -f $i/lib/libkrb5.$SHLIB_SUFFIX_NAME; then
+         PHP_KERBEROS_DIR=$i
++        PHP_KERBEROS_LIBDIR=$i/lib
++        break
++      elif test -f $i/lib64/libkrb5.a -o -f $i/lib64/libkrb5.$SHLIB_SUFFIX_NAME; then
++        PHP_KERBEROS_DIR=$i
++        PHP_KERBEROS_LIBDIR=$i/lib64
+         break
+       fi
+     done
+ 
+     if test "$PHP_KERBEROS_DIR"; then
+       found_kerberos=yes
+-      PHP_ADD_LIBPATH($PHP_KERBEROS_DIR/lib, $1)
++      PHP_ADD_LIBPATH($PHP_KERBEROS_LIBDIR, $1)
+       PHP_ADD_LIBRARY(gssapi_krb5, 1, $1)
+       PHP_ADD_LIBRARY(krb5, 1, $1)
+       PHP_ADD_LIBRARY(k5crypto, 1, $1)
+@@ -1755,6 +1762,9 @@
+       if test -r $i/lib/libssl.a -o -r $i/lib/libssl.$SHLIB_SUFFIX_NAME; then
+         OPENSSL_LIBDIR=$i/lib
+       fi
++      if test -r $i/lib64/libssl.a -o -r $i/lib64/libssl.$SHLIB_SUFFIX_NAME; then
++        OPENSSL_LIBDIR=$i/lib64
++      fi
+       test -n "$OPENSSL_INCDIR" && test -n "$OPENSSL_LIBDIR" && break
+     done
+ 
+@@ -1875,7 +1885,9 @@
+     fi
+   
+     if test -f $ICONV_DIR/lib/lib$iconv_lib_name.a ||
+-       test -f $ICONV_DIR/lib/lib$iconv_lib_name.$SHLIB_SUFFIX_NAME
++       test -f $ICONV_DIR/lib/lib$iconv_lib_name.$SHLIB_SUFFIX_NAME ||
++       test -f $ICONV_DIR/lib64/lib$iconv_lib_name.a ||
++       test -f $ICONV_DIR/lib64/lib$iconv_lib_name.$SHLIB_SUFFIX_NAME
+     then
+       PHP_CHECK_LIBRARY($iconv_lib_name, libiconv, [
+         found_iconv=yes
+--- ext/bz2/config.m4	2004-01-21 06:04:50.000000000 +0100
++++ ext/bz2/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -19,6 +19,12 @@
+     done
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $BZIP_DIR/$j; then
++      BZIP_LIBDIR=$BZIP_DIR/$j
++    fi
++  done
++
+   if test -z "$BZIP_DIR"; then
+     AC_MSG_RESULT(not found)
+     AC_MSG_ERROR(Please reinstall the BZip2 distribution)
+@@ -27,12 +33,12 @@
+   PHP_CHECK_LIBRARY(bz2, BZ2_bzerror, 
+   [
+     PHP_ADD_INCLUDE($BZIP_DIR/include)
+-    PHP_ADD_LIBRARY_WITH_PATH(bz2, $BZIP_DIR/lib, BZ2_SHARED_LIBADD)
++    PHP_ADD_LIBRARY_WITH_PATH(bz2, $BZIP_LIBDIR, BZ2_SHARED_LIBADD)
+     AC_DEFINE(HAVE_BZ2,1,[ ])
+   ], [
+     AC_MSG_ERROR(bz2 module requires libbz2 >= 1.0.0)
+   ], [
+-    -L$BZIP_DIR/lib
++    -L$BZIP_LIBDIR
+   ])
+ 
+   PHP_NEW_EXTENSION(bz2, bz2.c, $ext_shared)
+--- ext/curl/config.m4	2005-11-22 23:53:50.000000000 +0100
++++ ext/curl/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -23,6 +23,12 @@
+     done
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $CURL_DIR/$j; then
++      CURL_LIBDIR=$CURL_DIR/$j
++    fi
++  done
++
+   if test -z "$CURL_DIR"; then
+     AC_MSG_RESULT(not found)
+     AC_MSG_ERROR(Please reinstall the libcurl distribution -
+@@ -83,7 +89,7 @@
+ 
+   PHP_ADD_INCLUDE($CURL_DIR/include)
+   PHP_EVAL_LIBLINE($CURL_LIBS, CURL_SHARED_LIBADD)
+-  PHP_ADD_LIBRARY_WITH_PATH(curl, $CURL_DIR/lib, CURL_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(curl, $CURL_LIBDIR, CURL_SHARED_LIBADD)
+ 
+   PHP_CHECK_LIBRARY(curl,curl_easy_perform, 
+   [ 
+@@ -91,14 +97,14 @@
+   ],[
+     AC_MSG_ERROR(There is something wrong. Please check config.log for more information.)
+   ],[
+-    $CURL_LIBS -L$CURL_DIR/lib
++    $CURL_LIBS -L$CURL_LIBDIR
+   ])
+ 
+   PHP_CHECK_LIBRARY(curl,curl_version_info,
+   [
+     AC_DEFINE(HAVE_CURL_VERSION_INFO,1,[ ])
+   ],[],[
+-    $CURL_LIBS -L$CURL_DIR/lib
++    $CURL_LIBS -L$CURL_LIBDIR
+   ])
+ 
+ dnl  if test "$PHP_CURLWRAPPERS" != "no" ; then
+--- ext/dba/config.m4	2005-08-22 21:59:42.000000000 +0200
++++ ext/dba/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -80,12 +80,18 @@
+       fi
+     done
+ 
++    for j in lib64 lib; do
++      if test -d $THIS_PREFIX/$j; then
++        THIS_PREFIX_LIBDIR=$THIS_PREFIX/$j
++      fi
++    done
++
+     if test -n "$THIS_INCLUDE"; then
+       PHP_CHECK_LIBRARY(gdbm, gdbm_open, [
+         AC_DEFINE_UNQUOTED(GDBM_INCLUDE_FILE, "$THIS_INCLUDE", [ ])
+         AC_DEFINE(DBA_GDBM, 1, [ ]) 
+         THIS_LIBS=gdbm
+-      ], [], [-L$THIS_PREFIX/lib])
++      ], [], [-L$THIS_PREFIX_LIBDIR])
+     fi
+     
+     PHP_DBA_STD_ASSIGN
+@@ -110,14 +116,20 @@
+         break
+       fi
+     done
+-    
++
++    for j in lib64 lib; do
++      if test -d $THIS_PREFIX/$j; then
++        THIS_PREFIX_LIBDIR=$THIS_PREFIX/$j
++      fi
++    done
++
+     if test -n "$THIS_INCLUDE"; then
+       for LIB in ndbm db1 c; do
+         PHP_CHECK_LIBRARY($LIB, dbm_open, [
+           AC_DEFINE_UNQUOTED(NDBM_INCLUDE_FILE, "$THIS_INCLUDE", [ ])
+           AC_DEFINE(DBA_NDBM, 1, [ ]) 
+           THIS_LIBS=$LIB
+-        ], [], [-L$THIS_PREFIX/lib])
++        ], [], [-L$THIS_PREFIX_LIBDIR])
+         if test -n "$THIS_LIBS"; then
+           break
+         fi
+@@ -135,25 +147,28 @@
+ dnl parameters(version, library list, function)
+ AC_DEFUN([PHP_DBA_DB_CHECK],[
+   for LIB in $2; do
+-    if test -f $THIS_PREFIX/lib/lib$LIB.a -o -f $THIS_PREFIX/lib/lib$LIB.$SHLIB_SUFFIX_NAME; then
+-      PHP_TEMP_LDFLAGS(-L$THIS_PREFIX/lib, -l$LIB,[
+-        AC_TRY_LINK([
++    for LIBDIR in lib64 lib; do
++      if test -f $THIS_PREFIX/$LIBDIR/lib$LIB.a -o -f $THIS_PREFIX/$LIBDIR/lib$LIB.$SHLIB_SUFFIX_NAME; then
++        PHP_TEMP_LDFLAGS(-L$THIS_PREFIX/$LIBDIR, -l$LIB,[
++          AC_TRY_LINK([
+ #include "$THIS_INCLUDE"
+-        ],[
+-          $3;
+-        ],[
+-          AC_EGREP_CPP(yes,[
++          ],[
++            $3;
++          ],[
++            AC_EGREP_CPP(yes,[
+ #include "$THIS_INCLUDE"
+ #if DB_VERSION_MAJOR == $1
+-            yes
++              yes
+ #endif
+-          ],[
+-            THIS_LIBS=$LIB
+-            break
++            ],[
++              THIS_LIBS=$LIB
++              break
++            ])
+           ])
+         ])
+-      ])
+-    fi
++      fi
++    done
++    test -n "$THIS_LIBS" && break
+   done
+   if test -z "$THIS_LIBS"; then
+ 	AC_MSG_CHECKING(for db$1 major version)
+@@ -314,6 +329,12 @@
+       fi
+     done
+ 
++    for j in lib64 lib; do
++      if test -d $THIS_PREFIX/$j; then
++        THIS_PREFIX_LIBDIR=$THIS_PREFIX/$j
++      fi
++    done
++
+     if test -n "$THIS_INCLUDE"; then
+       for LIB in dbm c gdbm; do
+         PHP_CHECK_LIBRARY($LIB, dbminit, [
+@@ -328,7 +349,7 @@
+           fi
+           AC_DEFINE(DBA_DBM, 1, [ ]) 
+           THIS_LIBS=$LIB
+-        ], [], [-L$THIS_PREFIX/lib])
++        ], [], [-L$THIS_PREFIX_LIBDIR])
+         if test -n "$THIS_LIBS"; then
+           break
+         fi
+@@ -364,13 +385,19 @@
+       fi
+     done
+ 
++    for j in lib64 lib; do
++      if test -d $THIS_PREFIX/$j; then
++        THIS_PREFIX_LIBDIR=$THIS_PREFIX/$j
++      fi
++    done
++
+     if test -n "$THIS_INCLUDE"; then
+       for LIB in cdb c; do
+         PHP_CHECK_LIBRARY($LIB, cdb_read, [
+           AC_DEFINE_UNQUOTED(CDB_INCLUDE_FILE, "$THIS_INCLUDE", [ ])
+           AC_DEFINE(DBA_CDB, 1, [ ]) 
+           THIS_LIBS=$LIB
+-        ], [], [-L$THIS_PREFIX/lib])
++        ], [], [-L$THIS_PREFIX_LIBDIR])
+         if test -n "$THIS_LIBS"; then
+           break
+         fi
+--- ext/domxml/config.m4	2004-12-30 08:02:17.000000000 +0100
++++ ext/domxml/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -48,13 +48,15 @@
+     AC_MSG_ERROR(Please reinstall the libxml >= 2.4.14 distribution)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $DOMXML_DIR/$j; then
++      DOMXML_LIBDIR=$DOMXML_DIR/$j
++    fi
++  done
++
+   PHP_DOM_CHECK_VERSION
+ 
+-  if test -f $DOMXML_DIR/lib/libxml2.a -o -f $DOMXML_DIR/lib/libxml2.$SHLIB_SUFFIX_NAME ; then
+-    DOM_LIBNAME=xml2
+-  else
+-    DOM_LIBNAME=xml
+-  fi
++  DOM_LIBNAME=xml2
+ 
+   XML2_CONFIG=$DOMXML_DIR/bin/xml2-config
+  
+@@ -62,7 +64,7 @@
+     DOM_LIBS=`$XML2_CONFIG --libs`
+     PHP_EVAL_LIBLINE($DOM_LIBS, DOMXML_SHARED_LIBADD)
+   else 
+-    PHP_ADD_LIBRARY_WITH_PATH($DOM_LIBNAME, $DOMXML_DIR/lib, DOMXML_SHARED_LIBADD)
++    PHP_ADD_LIBRARY_WITH_PATH($DOM_LIBNAME, $DOMXML_LIBDIR, DOMXML_SHARED_LIBADD)
+   fi
+ 
+   PHP_ADD_INCLUDE($DOMXML_DIR/include$DOMXML_DIR_ADD)
+@@ -70,7 +72,13 @@
+   if test "$PHP_ZLIB_DIR" = "no"; then
+     AC_MSG_ERROR(DOMXML requires ZLIB. Use --with-zlib-dir=<DIR>)
+   else
+-    PHP_ADD_LIBRARY_WITH_PATH(z, $PHP_ZLIB_DIR/lib, DOMXML_SHARED_LIBADD)
++    for j in lib64 lib; do
++      if test -d $PHP_ZLIB_DIR/$j; then
++        PHP_ZLIB_LIBDIR=$PHP_ZLIB_DIR/$j
++      fi
++    done
++
++    PHP_ADD_LIBRARY_WITH_PATH(z, $PHP_ZLIB_LIBDIR, DOMXML_SHARED_LIBADD)
+   fi
+   
+   AC_DEFINE(HAVE_DOMXML,1,[ ])
+@@ -135,27 +143,35 @@
+     AC_MSG_ERROR(Please reinstall the libxslt >= 1.0.3 distribution)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $DOMXSLT_DIR/$j; then
++      DOMXSLT_LIBDIR=$DOMXSLT_DIR/$j
++    fi
++  done
++
+   PHP_DOM_XSLT_CHECK_VERSION
+ 
+-  PHP_ADD_LIBRARY_WITH_PATH(xslt, $DOMXSLT_DIR/lib, DOMXML_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(xslt, $DOMXSLT_LIBDIR, DOMXML_SHARED_LIBADD)
+ 
+   PHP_ADD_INCLUDE($DOMXSLT_DIR/include)
+ 
+   if test "$PHP_DOM" = "no"; then
+     AC_MSG_ERROR(DOMXSLT requires DOMXML. Use --with-dom=<DIR>)
+   fi
+-  
+-  if test -f $DOMXML_DIR/lib/libxml2.a -o -f $DOMXML_DIR/lib/libxml2.$SHLIB_SUFFIX_NAME ; then
+-    DOM_LIBNAME=xml2
+-  else
+-    DOM_LIBNAME=xml
+-  fi
+ 
+-  PHP_ADD_LIBRARY_WITH_PATH($DOM_LIBNAME, $DOMXML_DIR/lib, DOMXML_SHARED_LIBADD)
++  for j in lib64 lib; do
++    if test -d $DOMXML_DIR/$j; then
++      DOMXML_LIBDIR=$DOMXML_DIR/$j
++    fi
++  done
++
++  DOM_LIBNAME=xml2
++
++  PHP_ADD_LIBRARY_WITH_PATH($DOM_LIBNAME, $DOMXML_LIBDIR, DOMXML_SHARED_LIBADD)
+   PHP_ADD_INCLUDE($DOMXML_DIR/include$DOMXML_DIR_ADD)
+ 
+-  if test -f $DOMXML_DIR/lib/libxsltbreakpoint.a -o -f $DOMXML_DIR/lib/libxsltbreakpoint.$SHLIB_SUFFIX_NAME ; then
+-    PHP_ADD_LIBRARY_WITH_PATH(xsltbreakpoint, $DOMXML_DIR/lib, DOMXML_SHARED_LIBADD)
++  if test -f $DOMXML_LIBDIR/libxsltbreakpoint.a -o -f $DOMXML_LIBDIR/libxsltbreakpoint.$SHLIB_SUFFIX_NAME ; then
++    PHP_ADD_LIBRARY_WITH_PATH(xsltbreakpoint, $DOMXML_LIBDIR, DOMXML_SHARED_LIBADD)
+   fi
+ 
+   AC_DEFINE(HAVE_DOMXSLT,1,[ ])
+@@ -185,9 +201,15 @@
+     AC_MSG_ERROR(Please reinstall the libxslt >= 1.0.3 distribution)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $DOMEXSLT_DIR/$j; then
++      DOMEXSLT_LIBDIR=$DOMEXSLT_DIR/$j
++    fi
++  done
++
+   PHP_DOM_EXSLT_CHECK_VERSION
+ 
+-  PHP_ADD_LIBRARY_WITH_PATH(exslt, $DOMEXSLT_DIR/lib, DOMXML_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(exslt, $DOMEXSLT_LIBDIR, DOMXML_SHARED_LIBADD)
+ 
+   PHP_ADD_INCLUDE($DOMEXSLT_DIR/include)
+ 
+--- ext/gd/config.m4	2005-05-17 14:23:09.000000000 +0200
++++ ext/gd/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -50,8 +50,15 @@
+ AC_DEFUN([PHP_GD_JPEG],[
+   if test "$PHP_JPEG_DIR" != "no"; then
+ 
+-    for i in $PHP_JPEG_DIR /usr/local /usr; do
+-      test -f $i/lib/libjpeg.$SHLIB_SUFFIX_NAME -o -f $i/lib/libjpeg.a && GD_JPEG_DIR=$i && break
++    for j in lib64 lib; do
++      for i in $PHP_JPEG_DIR /usr/local /usr; do
++        if test -f "$i/$j/libjpeg.$SHLIB_SUFFIX_NAME" -o -f "$i/$j/libjpeg.a"; then
++          GD_JPEG_DIR=$i
++          GD_JPEG_LIB_DIR=$i/$j
++          break
++        fi
++      done
++      test -n "$GD_JPEG_DIR" && break
+     done
+ 
+     if test -z "$GD_JPEG_DIR"; then
+@@ -61,11 +68,11 @@
+     PHP_CHECK_LIBRARY(jpeg,jpeg_read_header,
+     [
+       PHP_ADD_INCLUDE($GD_JPEG_DIR/include)
+-      PHP_ADD_LIBRARY_WITH_PATH(jpeg, $GD_JPEG_DIR/lib, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(jpeg, $GD_JPEG_LIB_DIR, GD_SHARED_LIBADD)
+     ],[
+       AC_MSG_ERROR([Problem with libjpeg.(a|so). Please check config.log for more information.]) 
+     ],[
+-      -L$GD_JPEG_DIR/lib
++      -L$GD_JPEG_LIB_DIR
+     ])
+   else 
+     AC_MSG_RESULT([If configure fails try --with-jpeg-dir=<DIR>])
+@@ -75,8 +82,15 @@
+ AC_DEFUN([PHP_GD_PNG],[
+   if test "$PHP_PNG_DIR" != "no"; then
+ 
+-    for i in $PHP_PNG_DIR /usr/local /usr; do
+-      test -f $i/lib/libpng.$SHLIB_SUFFIX_NAME -o -f $i/lib/libpng.a && GD_PNG_DIR=$i && break
++    for j in lib64 lib; do
++      for i in $PHP_PNG_DIR /usr/local /usr; do
++        if test -f "$i/$j/libpng.$SHLIB_SUFFIX_NAME" -o -f "$i/$j/libpng.a"; then
++          GD_PNG_DIR=$i
++          GD_PNG_LIB_DIR=$i/$j
++          break
++        fi
++      done
++      test -n "$GD_PNG_DIR" && break
+     done
+ 
+     if test -z "$GD_PNG_DIR"; then
+@@ -94,12 +108,12 @@
+     PHP_CHECK_LIBRARY(png,png_write_image,
+     [
+       PHP_ADD_INCLUDE($GD_PNG_DIR/include)
+-      PHP_ADD_LIBRARY_WITH_PATH(z, $PHP_ZLIB_DIR/lib, GD_SHARED_LIBADD)
+-      PHP_ADD_LIBRARY_WITH_PATH(png, $GD_PNG_DIR/lib, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(z, $PHP_ZLIB_LIB_DIR, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(png, $GD_PNG_LIB_DIR, GD_SHARED_LIBADD)
+     ],[
+       AC_MSG_ERROR([Problem with libpng.(a|so) or libz.(a|so). Please check config.log for more information.]) 
+     ],[
+-      -L$PHP_ZLIB_DIR/lib -lz -L$GD_PNG_DIR/lib
++      -L$PHP_ZLIB_LIB_DIR -lz -L$GD_PNG_LIB_DIR
+     ])
+ 
+   else 
+@@ -110,8 +124,15 @@
+ AC_DEFUN([PHP_GD_XPM],[
+   if test "$PHP_XPM_DIR" != "no"; then
+ 
+-    for i in $PHP_XPM_DIR /usr/local /usr/X11R6 /usr; do
+-      test -f $i/lib/libXpm.$SHLIB_SUFFIX_NAME -o -f $i/lib/libXpm.a && GD_XPM_DIR=$i && break
++    for j in lib64 lib; do
++      for i in $PHP_XPM_DIR /usr/local /usr/X11R6 /usr; do
++        if test -f "$i/$j/libXpm.$SHLIB_SUFFIX_NAME" -o -f "$i/$j/libXpm.a"; then
++          GD_XPM_DIR=$i
++          GD_XPM_LIB_DIR=$i/$j
++          break
++        fi
++      done
++      test -n "$GD_XPM_DIR" && break
+     done
+ 
+     if test -z "$GD_XPM_DIR"; then
+@@ -129,12 +150,12 @@
+     PHP_CHECK_LIBRARY(Xpm,XpmFreeXpmImage, 
+     [
+       PHP_ADD_INCLUDE($GD_XPM_INC)
+-      PHP_ADD_LIBRARY_WITH_PATH(Xpm, $GD_XPM_DIR/lib, GD_SHARED_LIBADD)
+-      PHP_ADD_LIBRARY_WITH_PATH(X11, $GD_XPM_DIR/lib, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(Xpm, $GD_XPM_LIB_DIR, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(X11, $GD_XPM_LIB_DIR, GD_SHARED_LIBADD)
+     ],[
+       AC_MSG_ERROR([Problem with libXpm.(a|so) or libX11.(a|so). Please check config.log for more information.]) 
+     ],[
+-      -L$GD_XPM_DIR/lib -lX11
++      -L$GD_XPM_LIB_DIR -lX11
+     ])
+   else 
+     AC_MSG_RESULT(If configure fails try --with-xpm-dir=<DIR>)
+@@ -145,25 +166,29 @@
+   if test "$PHP_TTF" != "no"; then
+     if test "$PHP_FREETYPE_DIR" = "no" -o "$PHP_FREETYPE_DIR" = ""; then
+       if test -n "$PHP_TTF"; then
+-        for i in $PHP_TTF /usr/local /usr; do
+-          if test -f "$i/include/freetype.h"; then
+-            TTF_DIR=$i
+-            unset TTF_INC_DIR
+-          fi
+-          if test -f "$i/include/freetype/freetype.h"; then
+-            TTF_DIR=$i
+-            TTF_INC_DIR=$i/include/freetype
+-          fi
+-          if test -f "$i/include/freetype1/freetype/freetype.h"; then
+-            TTF_DIR=$i
+-            TTF_INC_DIR=$i/include/freetype1/freetype
+-          fi
++        for j in lib64 lib; do
++          for i in $PHP_TTF /usr/local /usr; do
++            if test -f "$i/$j/libttf.a" -o -f "$i/$j/libttf.$SHLIB_SUFFIX_NAME"; then
++              TTF_DIR=$i
++              TTF_LIB_DIR=$i/$j
++              if test -f "$i/include/freetype.h"; then
++                unset TTF_INC_DIR
++              elif test -f "$i/include/freetype/freetype.h"; then
++                TTF_INC_DIR=$i/include/freetype
++              elif test -f "$i/include/freetype1/freetype/freetype.h"; then
++                TTF_INC_DIR=$i/include/freetype1/freetype
++              else
++                unset TTF_DIR
++              fi
++            fi
++            test -n "$TTF_DIR" && break
++          done
+           test -n "$TTF_DIR" && break
+         done
+       fi
+       if test -n "$TTF_DIR" ; then
+         AC_DEFINE(HAVE_LIBTTF,1,[ ])
+-        PHP_ADD_LIBRARY_WITH_PATH(ttf, $TTF_DIR/lib, GD_SHARED_LIBADD)
++        PHP_ADD_LIBRARY_WITH_PATH(ttf, $TTF_LIB_DIR, GD_SHARED_LIBADD)
+       fi
+       if test -z "$TTF_INC_DIR"; then
+         TTF_INC_DIR=$TTF_DIR/include
+@@ -178,16 +203,21 @@
+ AC_DEFUN([PHP_GD_FREETYPE2],[
+   if test "$PHP_FREETYPE_DIR" != "no"; then
+ 
+-    for i in $PHP_FREETYPE_DIR /usr/local /usr; do
+-      if test -f "$i/include/freetype2/freetype/freetype.h"; then
+-        FREETYPE2_DIR=$i
+-        FREETYPE2_INC_DIR=$i/include/freetype2
+-        break
+-      fi
++    for j in lib64 lib; do
++      for i in $PHP_FREETYPE_DIR /usr/local /usr; do
++        if test -f "$i/include/freetype2/freetype/freetype.h" && \
++           test -f "$i/$j/libfreetype.a" -o -f "$i/$j/libfreetype.$SHLIB_SUFFIX_NAME"; then
++          FREETYPE2_DIR=$i
++          FREETYPE2_LIB_DIR=$i/$j
++          FREETYPE2_INC_DIR=$i/include/freetype2
++          break
++        fi
++      done
++      test -n "$FREETYPE2_DIR" && break
+     done
+     
+     if test -n "$FREETYPE2_DIR" ; then
+-      PHP_ADD_LIBRARY_WITH_PATH(freetype, $FREETYPE2_DIR/lib, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(freetype, $FREETYPE2_LIB_DIR, GD_SHARED_LIBADD)
+       PHP_ADD_INCLUDE($FREETYPE2_DIR/include)
+       PHP_ADD_INCLUDE($FREETYPE2_INC_DIR)
+       AC_DEFINE(USE_GD_IMGSTRTTF, 1, [ ])
+@@ -203,8 +233,16 @@
+ AC_DEFUN([PHP_GD_T1LIB],[
+   if test "$PHP_T1LIB" != "no"; then
+ 
+-    for i in $PHP_T1LIB /usr/local /usr; do
+-      test -f "$i/include/t1lib.h" && GD_T1_DIR=$i && break
++    for j in lib64 lib; do
++      for i in $PHP_T1LIB /usr/local /usr; do
++        if test -f "$i/include/t1lib.h" && \
++           test -f "$i/$j/libt1.a" -o -f "$i/$j/libt1.$SHLIB_SUFFIX_NAME"; then
++          GD_T1_DIR=$i
++          GD_T1_LIB_DIR=$i/$j
++          break
++        fi
++      done
++      test -n "$GD_T1_DIR" && break
+     done
+ 
+     if test -z "$GD_T1_DIR"; then
+@@ -215,11 +253,11 @@
+     [
+       AC_DEFINE(HAVE_LIBT1,1,[ ])
+       PHP_ADD_INCLUDE($GD_T1_DIR/include)
+-      PHP_ADD_LIBRARY_WITH_PATH(t1, $GD_T1_DIR/lib, GD_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(t1, $GD_T1_LIB_DIR, GD_SHARED_LIBADD)
+     ],[
+       AC_MSG_ERROR([Problem with libt1.(a|so). Please check config.log for more information.]) 
+     ],[
+-      -L$GD_T1_DIR/lib
++      -L$GD_T1_LIB_DIR
+     ])
+   fi
+ ])
+@@ -365,7 +403,7 @@
+   done
+ 
+ dnl Library path
+-  for i in lib/gd1.3 lib/gd lib gd1.3 gd ""; do
++  for i in lib/gd1.3 lib64/gd1.3 lib/gd lib64/gd lib lib64 gd1.3 gd ""; do
+     test -f "$PHP_GD/$i/libgd.$SHLIB_SUFFIX_NAME" -o -f "$PHP_GD/$i/libgd.a" && GD_LIB="$PHP_GD/$i"
+   done
+ 
+--- ext/gettext/config.m4	2003-10-01 04:53:58.000000000 +0200
++++ ext/gettext/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -14,11 +14,15 @@
+     AC_MSG_ERROR(Cannot locate header file libintl.h)
+   fi
+ 
+-  GETTEXT_LIBDIR=$GETTEXT_DIR/lib
++  for j in lib64 lib; do
++    if test -d $GETTEXT_DIR/$j; then
++      GETTEXT_LIBDIR=$GETTEXT_DIR/$j
++    fi
++  done
++
+   GETTEXT_INCDIR=$GETTEXT_DIR/include
+   
+   O_LDFLAGS=$LDFLAGS
+-  LDFLAGS="$LDFLAGS -L$GETTEXT_LIBDIR"
+   AC_CHECK_LIB(intl, bindtextdomain, [
+ 	GETTEXT_LIBS=intl
+ 	GETTEXT_CHECK_IN_LIB=intl
+--- ext/gmp/config.m4	2003-11-19 05:44:24.000000000 +0100
++++ ext/gmp/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -14,20 +14,26 @@
+   if test -z "$GMP_DIR"; then
+     AC_MSG_ERROR(Unable to locate gmp.h)
+   fi
+- 
++
++  for j in lib64 lib; do
++    if test -d $GMP_DIR/$j; then
++      GMP_LIBDIR=$GMP_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(gmp, __gmp_randinit_lc_2exp_size,
+   [],[
+     PHP_CHECK_LIBRARY(gmp, gmp_randinit_lc_2exp_size,
+     [],[
+       AC_MSG_ERROR([GNU MP Library version 4.1.2 or greater required.])
+     ],[
+-      -L$GMP_DIR/lib
++      -L$GMP_LIBDIR
+     ])
+   ],[
+-    -L$GMP_DIR/lib
++    -L$GMP_LIBDIR
+   ])
+ 
+-  PHP_ADD_LIBRARY_WITH_PATH(gmp, $GMP_DIR/lib, GMP_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(gmp, $GMP_LIBDIR, GMP_SHARED_LIBADD)
+   PHP_ADD_INCLUDE($GMP_DIR/include)
+ 
+   PHP_NEW_EXTENSION(gmp, gmp.c, $ext_shared)
+--- ext/iconv/config.m4	2005-01-10 22:38:56.000000000 +0100
++++ ext/iconv/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -23,8 +23,14 @@
+       PHP_ICONV_PREFIX="$ICONV_DIR"
+     fi
+ 
++    for j in lib64 lib; do
++      if test -d $PHP_ICONV_PREFIX/$j; then
++        PHP_ICONV_PREFIX_LIBDIR=$PHP_ICONV_PREFIX/$j
++      fi
++    done
++
+     CFLAGS="-I$PHP_ICONV_PREFIX/include $CFLAGS"
+-    LDFLAGS="-L$PHP_ICONV_PREFIX/lib $LDFLAGS"
++    LDFLAGS="-L$PHP_ICONV_PREFIX_LIBDIR $LDFLAGS"
+ 
+     if test -r $PHP_ICONV_PREFIX/include/giconv.h; then
+       PHP_ICONV_H_PATH="$PHP_ICONV_PREFIX/include/giconv.h"
+--- ext/imap/config.m4	2005-01-11 05:56:57.000000000 +0100
++++ ext/imap/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -210,6 +210,7 @@
+     for lib in c-client4 c-client imap; do
+       IMAP_LIB=$lib
+       IMAP_LIB_CHK(lib)
++      IMAP_LIB_CHK(lib64)
+       IMAP_LIB_CHK(c-client)
+     done
+ 
+--- ext/interbase/config.m4	2003-04-25 10:59:00.000000000 +0200
++++ ext/interbase/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -9,10 +9,18 @@
+ if test "$PHP_INTERBASE" != "no"; then
+   if test "$PHP_INTERBASE" = "yes"; then
+     IBASE_INCDIR=/usr/interbase/include
+-    IBASE_LIBDIR=/usr/interbase/lib
++    for j in lib64 lib; do
++      if test -d /usr/interbase/$j; then
++        IBASE_LIBDIR=/usr/interbase/$j
++      fi
++    done
+   else
+     IBASE_INCDIR=$PHP_INTERBASE/include
+-    IBASE_LIBDIR=$PHP_INTERBASE/lib
++    for j in lib64 lib; do
++      if test -d $PHP_INTERBASE/$j; then
++        IBASE_LIBDIR=$PHP_INTERBASE/$j
++      fi
++    done
+   fi
+ 
+   PHP_CHECK_LIBRARY(gds, isc_detach_database,
+--- ext/ldap/config.m4	2005-11-03 21:41:56.000000000 +0100
++++ ext/ldap/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -6,7 +6,8 @@
+   if test -f $1/include/ldap.h; then
+     LDAP_DIR=$1
+     LDAP_INCDIR=$1/include
+-    LDAP_LIBDIR=$1/lib
++    test -f $1/lib/libldap.so && LDAP_LIBDIR=$1/lib
++    test -f $1/lib64/libldap.so && LDAP_LIBDIR=$1/lib64
+   elif test -f $1/include/umich-ldap/ldap.h; then
+     LDAP_DIR=$1
+     LDAP_INCDIR=$1/include/umich-ldap
+--- ext/mbstring/config.m4	2005-12-30 06:25:54.000000000 +0100
++++ ext/mbstring/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -170,12 +170,18 @@
+       PHP_ADD_INCLUDE([$PHP_LIBMBFL_INCLUDE])
+     fi
+ 
++    for j in lib64 lib; do
++      if test -d $PHP_LIBMBFL/$j; then
++        PHP_LIBMBFL_LIBDIR=$PHP_LIBMBFL/$j
++      fi
++    done
++
+     PHP_CHECK_LIBRARY(mbfl, mbfl_buffer_converter_new, [
+-      PHP_ADD_LIBRARY_WITH_PATH(mbfl, $PHP_LIBMBFL/lib, MBSTRING_SHARED_LIBADD)
++      PHP_ADD_LIBRARY_WITH_PATH(mbfl, $PHP_LIBMBFL_LIBDIR, MBSTRING_SHARED_LIBADD)
+     ],[
+       AC_MSG_ERROR([Problem with libmbfl. Please check config.log for more information.])
+     ], [
+-      -LPHP_LIBMBFL/lib
++      -L$PHP_LIBMBFL_LIBDIR
+     ])
+   fi
+ ])
+--- ext/mcal/config.m4	2002-03-27 11:26:16.000000000 +0100
++++ ext/mcal/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -19,7 +19,7 @@
+     fi
+   done
+ 
+-  for i in $MCAL_DIR $MCAL_DIR/mcal $MCAL_DIR/mcal/lib $MCAL_DIR/lib/mcal $MCAL_DIR/lib; do
++  for i in $MCAL_DIR $MCAL_DIR/mcal $MCAL_DIR/mcal/lib $MCAL_DIR/lib/mcal $MCAL_DIR/lib64/mcal $MCAL_DIR/lib $MCAL_DIR/lib64; do
+     if test -r "$i/libmcal.a"; then
+       MCAL_LIBRARY=$i
+     fi
+--- ext/mcrypt/config.m4	2005-01-22 02:37:12.000000000 +0100
++++ ext/mcrypt/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -14,6 +14,12 @@
+     AC_MSG_ERROR(mcrypt.h not found. Please reinstall libmcrypt.)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $MCRYPT_DIR/$j; then
++      MCRYPT_LIBDIR=$MCRYPT_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(mcrypt, mcrypt_module_open, 
+   [
+     PHP_ADD_LIBRARY(ltdl,, MCRYPT_SHARED_LIBADD)
+@@ -23,7 +29,7 @@
+     [
+       AC_DEFINE(HAVE_MCRYPT_GENERIC_DEINIT,1,[ ])
+     ],[],[
+-      -L$MCRYPT_DIR/lib -lltdl
++      -L$MCRYPT_LIBDIR -lltdl
+     ])
+ 
+   ],[
+@@ -35,7 +41,7 @@
+       [
+         AC_DEFINE(HAVE_MCRYPT_GENERIC_DEINIT,1,[ ])
+       ],[],[
+-        -L$MCRYPT_DIR/lib
++        -L$MCRYPT_LIBDIR
+       ])
+     ],[
+       PHP_CHECK_LIBRARY(mcrypt, init_mcrypt, 
+@@ -44,16 +50,16 @@
+       ],[
+         AC_MSG_ERROR([Sorry, I was not able to diagnose which libmcrypt version you have installed.])
+       ],[
+-        -L$MCRYPT_DIR/lib
++        -L$MCRYPT_LIBDIR
+       ])
+     ],[
+-      -L$MCRYPT_DIR/lib
++      -L$MCRYPT_LIBDIR
+     ])
+   ],[
+-    -L$MCRYPT_DIR/lib -lltdl
++    -L$MCRYPT_LIBDIR -lltdl
+   ])
+ 
+-  PHP_ADD_LIBRARY_WITH_PATH(mcrypt, $MCRYPT_DIR/lib, MCRYPT_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(mcrypt, $MCRYPT_LIBDIR, MCRYPT_SHARED_LIBADD)
+   PHP_ADD_INCLUDE($MCRYPT_DIR/include)
+ 
+   PHP_NEW_EXTENSION(mcrypt, mcrypt.c, $ext_shared)
+--- ext/mcve/config.m4	2005-12-19 23:36:35.000000000 +0100
++++ ext/mcve/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -63,8 +63,14 @@
+ 
+   CPPFLAGS=$saved_CPPFLAGS
+ 
++  for j in lib64 lib; do
++    if test -d $MCVE_DIR/$j; then
++      MCVE_LIBDIR=$MCVE_DIR/$j
++    fi
++  done
++
+   PHP_ADD_INCLUDE($MCVE_DIR/include)
+-  PHP_ADD_LIBRARY_WITH_PATH(mcve, $MCVE_DIR/lib, MCVE_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(mcve, $MCVE_LIBDIR, MCVE_SHARED_LIBADD)
+ 
+   dnl Build test. Check for libmcve or libmonetra
+   dnl libmonetra_compat.h handle's MCVE_ -> M_ conversion
+--- ext/mhash/config.m4	2003-10-01 04:54:01.000000000 +0200
++++ ext/mhash/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -14,8 +14,14 @@
+     AC_MSG_ERROR(Please reinstall libmhash - I cannot find mhash.h)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $MHASH_DIR/$j; then
++      MHASH_LIBDIR=$MHASH_DIR/$j
++    fi
++  done
++
+   PHP_ADD_INCLUDE($MHASH_DIR/include)
+-  PHP_ADD_LIBRARY_WITH_PATH(mhash, $MHASH_DIR/lib, MHASH_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(mhash, $MHASH_LIBDIR, MHASH_SHARED_LIBADD)
+ 
+   PHP_NEW_EXTENSION(mhash, mhash.c, $ext_shared)
+   PHP_SUBST(MHASH_SHARED_LIBADD)
+--- ext/ming/config.m4	2005-12-21 22:50:08.000000000 +0100
++++ ext/ming/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -8,10 +8,12 @@
+ if test "$PHP_MING" != "no"; then
+   AC_CHECK_LIB(m, sin)
+ 
+-  for i in $PHP_MING /usr/local /usr; do
+-    if test -f $i/lib/libming.$SHLIB_SUFFIX_NAME -o -f $i/lib/libming.a; then
++  for j in lib64 lib; do
++    for i in $PHP_MING /usr/local /usr; do
++      if test -f $i/$j/libming.$SHLIB_SUFFIX_NAME -o -f $i/$j/libming.a; then
+       MING_DIR=$i
+-    fi
++      fi
++    done
+   done
+ 
+   if test -z "$MING_DIR"; then
+@@ -28,16 +30,22 @@
+     AC_MSG_ERROR(Please reinstall ming distribution. ming.h not found.)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $MING_DIR/$j; then
++      MING_LIBDIR=$MING_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(ming, Ming_useSWFVersion, [
+     AC_DEFINE(HAVE_MING,1,[ ])
+   ],[
+     AC_MSG_ERROR([Ming library 0.2a or greater required.])
+   ],[
+-    -L$MING_DIR/lib
++    -L$MING_LIBDIR
+   ])
+   
+   PHP_ADD_INCLUDE($MING_INC_DIR)
+-  PHP_ADD_LIBRARY_WITH_PATH(ming, $MING_DIR/lib, MING_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(ming, $MING_LIBDIR, MING_SHARED_LIBADD)
+ 
+   AC_MSG_CHECKING([for destroySWFBlock])
+   old_CPPFLAGS=$CPPFLAGS
+--- ext/msession/config.m4	2002-03-12 17:25:11.000000000 +0100
++++ ext/msession/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -8,13 +8,17 @@
+ if test "$PHP_MSESSION" != "no"; then
+ 	if test -r $PHP_MSESSION/lib/libphoenix.a; then
+ 		PHOENIX_DIR=$PHP_MSESSION
++		PHOENIX_LIBDIR=$PHP_MSESSION/lib
+ 	else
+ 		AC_MSG_CHECKING(for msession in default path)
+-		for i in /usr/local/phoenix /usr/local /usr; do
+-			if test -r $i/lib/libphoenix.a; then
+-				PHOENIX_DIR=$i
+-				AC_MSG_RESULT(found in $i)
+-			fi
++		for j in lib64 lib; do
++			for i in /usr/local/phoenix /usr/local /usr; do
++				if test -r $i/$j/libphoenix.a; then
++					PHOENIX_DIR=$i
++					PHOENIX_LIBDIR=$i/$j
++					AC_MSG_RESULT(found in $i)
++				fi
++			done
+ 		done
+ 	fi
+ 
+@@ -25,7 +29,7 @@
+ 
+ 
+   	AC_DEFINE(HAVE_MSESSION, 1, [ ])
+-  	PHP_ADD_LIBRARY_WITH_PATH(phoenix, "$PHOENIX_DIR/lib", PHOENIX_LIB)
++  	PHP_ADD_LIBRARY_WITH_PATH(phoenix, "$PHOENIX_LIBDIR", PHOENIX_LIB)
+ 	PHOENIX_INCLUDE="-I$PHOENIX_DIR"
+ 	PHP_SUBST(PHOENIX_LIB)
+ 
+--- ext/mssql/config.m4	2004-12-08 19:59:11.000000000 +0100
++++ ext/mssql/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -19,6 +19,12 @@
+       fi
+     done
+ 
++    for j in lib64 lib; do
++      if test -d $FREETDS_INSTALLATION_DIR/$j; then
++        FREETDS_INSTALLATION_DIR_LIBDIR=$FREETDS_INSTALLATION_DIR/$j
++      fi
++    done
++
+     if test -z "$FREETDS_INSTALLATION_DIR"; then
+       AC_MSG_ERROR(Cannot find FreeTDS in known installation directories)
+     fi
+@@ -32,12 +38,12 @@
+     fi
+   fi  
+ 
+-  if test ! -r "$FREETDS_INSTALLATION_DIR/lib/libtds.a" && test ! -r "$FREETDS_INSTALLATION_DIR/lib/libtds.so"; then
+-     AC_MSG_ERROR(Could not find $FREETDS_INSTALLATION_DIR/lib/libtds.[a|so])
++  if test ! -r "$FREETDS_INSTALLATION_DIR_LIBDIR/libtds.a" && test ! -r "$FREETDS_INSTALLATION_DIR_LIBDIR/libtds.so"; then
++     AC_MSG_ERROR(Could not find $FREETDS_INSTALLATION_DIR_LIBDIR/libtds.[a|so])
+   fi
+ 
+   MSSQL_INCDIR=$FREETDS_INSTALLATION_DIR/include
+-  MSSQL_LIBDIR=$FREETDS_INSTALLATION_DIR/lib
++  MSSQL_LIBDIR=$FREETDS_INSTALLATION_DIR_LIBDIR
+ 
+   PHP_ADD_INCLUDE($MSSQL_INCDIR)
+   PHP_ADD_LIBRARY_WITH_PATH(sybdb, $MSSQL_LIBDIR, MSSQL_SHARED_LIBADD)
+--- ext/mysql/config.m4	2005-07-26 16:02:00.000000000 +0200
++++ ext/mysql/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -114,7 +114,11 @@
+ 
+   MYSQL_MODULE_TYPE=external
+ 
+-  MY_LIBNAME=mysqlclient
++  if test "$enable_experimental_zts" = "yes"; then
++    MY_LIBNAME=mysqlclient_r
++  else
++    MY_LIBNAME=mysqlclient
++  fi
+   case $host_alias in
+     *netware*[)]
+       MY_LIBNAME=mysql
+@@ -125,7 +125,7 @@
+       ;;
+   esac
+ 
+-  for i in lib lib/mysql; do
++  for i in lib64 lib64/mysql lib lib/mysql; do
+     MYSQL_LIB_CHK($i)
+   done
+ 
+@@ -136,13 +136,18 @@
+   PHP_CHECK_LIBRARY($MY_LIBNAME, mysql_close, [ ],
+   [
+     if test "$PHP_ZLIB_DIR" != "no"; then
++      for j in lib64 lib; do
++        if test -d $PHP_ZLIB_DIR/$j; then
++          PHP_ZLIB_LIBDIR=$PHP_ZLIB_DIR/$j
++        fi
++      done
+       PHP_ADD_LIBRARY_WITH_PATH(z, $PHP_ZLIB_DIR, MYSQL_SHARED_LIBADD)
+       PHP_CHECK_LIBRARY($MY_LIBNAME, mysql_error, [], [
+         AC_MSG_ERROR([mysql configure failed. Please check config.log for more information.])
+       ], [
+-        -L$PHP_ZLIB_DIR/lib -L$MYSQL_LIB_DIR 
++        -L$PHP_ZLIB_LIBDIR -L$MYSQL_LIB_DIR 
+       ])  
+-      MYSQL_LIBS="-L$PHP_ZLIB_DIR/lib -lz"
++      MYSQL_LIBS="-L$PHP_ZLIB_LIBDIR -lz"
+     else
+       PHP_ADD_LIBRARY(z,, MYSQL_SHARED_LIBADD)
+       PHP_CHECK_LIBRARY($MY_LIBNAME, mysql_errno, [], [
+--- ext/ncurses/config.m4	2003-12-09 21:33:22.000000000 +0100
++++ ext/ncurses/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -38,20 +38,26 @@
+    LIBNAME=ncurses 
+    LIBSYMBOL=initscr 
+ 
++   for j in lib64 lib; do
++     if test -d $NCURSES_DIR/$j; then
++       NCURSES_LIBDIR=$NCURSES_DIR/$j
++     fi
++   done
++
+    PHP_CHECK_LIBRARY($LIBNAME, $LIBSYMBOL, [
+      AC_DEFINE(HAVE_NCURSESLIB,1,[ ])
+-     PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $NCURSES_DIR/lib, NCURSES_SHARED_LIBADD)
++     PHP_ADD_LIBRARY_WITH_PATH($LIBNAME, $NCURSES_LIBDIR, NCURSES_SHARED_LIBADD)
+ 
+      PHP_CHECK_LIBRARY(panel, new_panel, [
+        AC_DEFINE(HAVE_NCURSES_PANEL,1,[ ])
+-       PHP_ADD_LIBRARY_WITH_PATH(panel, $NCURSES_DIR/lib, NCURSES_SHARED_LIBADD)
++       PHP_ADD_LIBRARY_WITH_PATH(panel, $NCURSES_LIBDIR, NCURSES_SHARED_LIBADD)
+      ], [], [ 
+-       -L$NCURSES_DIR/lib -l$LIBNAME -lm
++       -L$NCURSES_LIBDIR -l$LIBNAME -lm
+      ])
+    ], [
+      AC_MSG_ERROR(Wrong ncurses lib version or lib not found)
+    ], [
+-     -L$NCURSES_DIR/lib -lm
++     -L$NCURSES_LIBDIR -lm
+    ])
+  
+    AC_CHECK_LIB($LIBNAME, color_set,   [AC_DEFINE(HAVE_NCURSES_COLOR_SET,  1, [ ])])
+--- ext/odbc/config.m4	2006-01-10 15:17:26.000000000 +0100
++++ ext/odbc/config.m4	2006-02-25 00:46:06.000000000 +0100
+@@ -47,19 +47,8 @@
+ #
+ # Check for the library files, and setup the ODBC_LIBS path...
+ #
+-if test ! -f $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so -a \
+-	! -f $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a; then
+-  #
+-  # we have an error and should bail out, as we can't find the libs!
+-  #
+-  echo ""
+-  echo "*********************************************************************"
+-  echo "* Unable to locate $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so or $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a"
+-  echo "* Please correct this by creating the following links and reconfiguring:"
+-  echo "* $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a -> $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a"
+-  echo "* $1/${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so -> $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so"
+-  echo "*********************************************************************"
+-else
++if test -f $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so -a \
++	-f $1/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a; then
+   ODBC_LFLAGS=-L$1
+   ODBC_LIBS=-l${ac_solid_prefix}${ac_solid_os}${ac_solid_version}
+ fi
+@@ -100,8 +89,12 @@
+     withval=/usr/local
+   fi
+   if test "$withval" != "no"; then
++    for i in lib64 lib; do
++      ADABAS_LIBDIR=$withval/$i
++      test -f "$ADABAS_LIBDIR/odbclib.a" && break
++    done
+     PHP_ADD_INCLUDE($withval/incl)
+-    PHP_ADD_LIBPATH($withval/lib)
++    PHP_ADD_LIBPATH($ADABAS_LIBDIR)
+     ODBC_OBJS="$withval/lib/odbclib.a"
+     ODBC_LIB="$abs_builddir/ext/odbc/libodbc_adabas.a"
+     $srcdir/build/shtool mkdir -f -p ext/odbc
+@@ -132,8 +125,12 @@
+     withval=/usr/local
+   fi
+   if test "$withval" != "no"; then
++    for i in lib64 lib; do
++      SAPDB_LIBDIR=$withval/$i
++      test -f "$SAPDB_LIBDIR/libsqlod.a" -o -f "$SAPDB_LIBDIR/libsqlod.$SHLIB_SUFFIX_NAME" && break
++    done
+     PHP_ADD_INCLUDE($withval/incl)
+-    PHP_ADD_LIBPATH($withval/lib)
++    PHP_ADD_LIBPATH($SAPDB_LIBDIR)
+     PHP_ADD_LIBRARY(sqlod)
+     ODBC_TYPE=sapdb
+     AC_DEFINE(HAVE_SAPDB,1,[ ])
+@@ -158,19 +155,36 @@
+     withval=/usr/local/solid
+   fi
+   if test "$withval" != "no"; then
+-    ODBC_INCDIR=$withval/include
+-    ODBC_LIBDIR=$withval/lib
+-    ODBC_INCLUDE=-I$ODBC_INCDIR
+-    ODBC_TYPE=solid
+-    if test -f $ODBC_LIBDIR/soc*35.a; then
+-      AC_DEFINE(HAVE_SOLID_35,1,[ ])
+-    elif test -f $ODBC_LIBDIR/scl*30.a; then
+-      AC_DEFINE(HAVE_SOLID_30,1,[ ])
+-    elif test -f $ODBC_LIBDIR/scl*23.a; then
+-      AC_DEFINE(HAVE_SOLID,1,[ ])
++    for i in lib64 lib; do
++      SOLID_LIBDIR=$withval/$i
++      ODBC_INCDIR=$withval/include
++      ODBC_LIBDIR=$withval/$j
++      ODBC_INCLUDE=-I$ODBC_INCDIR
++      ODBC_TYPE=solid
++      if test -f $ODBC_LIBDIR/soc*35.a; then
++        AC_DEFINE(HAVE_SOLID_35,1,[ ])
++      elif test -f $ODBC_LIBDIR/scl*30.a; then
++        AC_DEFINE(HAVE_SOLID_30,1,[ ])
++      elif test -f $ODBC_LIBDIR/scl*23.a; then
++        AC_DEFINE(HAVE_SOLID,1,[ ])
++      fi
++      AC_MSG_RESULT(yes)
++      ODBC_LIBS=
++      AC_FIND_SOLID_LIBS($ODBC_LIBDIR)
++      test -n "$ODBC_LIBS" && break
++    done
++    if test -z "$ODBC_LIBS"; then
++      #
++      # we have an error and should bail out, as we can't find the libs!
++      #
++      echo ""
++      echo "*********************************************************************"
++      echo "* Unable to locate ODBC_LIBDIR/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so or ODBC_LIBDIR/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a"
++      echo "* Please correct this by creating the following links and reconfiguring:"
++      echo "* ODBC_LIBDIR/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a -> ODBC_LIBDIR/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.a"
++      echo "* ODBC_LIBDIR/${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so -> ODBC_LIBDIR/lib${ac_solid_prefix}${ac_solid_os}${ac_solid_version}.so"
++      echo "*********************************************************************"
+     fi
+-    AC_MSG_RESULT(yes)
+-    AC_FIND_SOLID_LIBS($ODBC_LIBDIR)
+   else
+     AC_MSG_RESULT(no)
+   fi
+@@ -400,11 +414,15 @@
+     withval=/usr/local
+   fi
+   if test "$withval" != "no"; then
+-    PHP_ADD_LIBRARY_WITH_PATH(iodbc, $withval/lib)
+-    PHP_ADD_INCLUDE($withval/include, 1)
++    for i in lib64 lib; do
++      IODBC_LIBDIR=$withval/$i
++      test -f "$IODBC_LIBDIR/libiodbc.a" -o -f "$IODBC_LIBDIR/libiodbc.$SHLIB_SUFFIX_NAME" && break
++    done
++    PHP_ADD_LIBRARY_WITH_PATH(iodbc, $IODBC_LIBDIR)
++    PHP_ADD_INCLUDE($withval/include/iodbc, 1)
+     ODBC_TYPE=iodbc
+-    ODBC_INCLUDE=-I$withval/include
+-    ODBC_LFLAGS=-L$withval/lib
++    ODBC_INCLUDE=-I$withval/include/iodbc
++    ODBC_LFLAGS=-L$IODBC_LIBDIR
+     ODBC_LIBS=-liodbc
+     AC_DEFINE(HAVE_IODBC,1,[ ])
+     AC_DEFINE(HAVE_ODBC2,1,[ ])
+@@ -429,8 +447,11 @@
+     withval=/usr/local/easysoft/oob/client
+   fi
+   if test "$withval" != "no"; then
++    for i in lib64 lib; do
++      ODBC_LIBDIR=$withval/$i
++      test -f "$ODBC_LIBDIR/libesoobclient.a" -o -f "$ODBC_LIBDIR/libesoobclient.$SHLIB_SUFFIX_NAME" && break
++    done
+     ODBC_INCDIR=$withval/include
+-    ODBC_LIBDIR=$withval/lib
+     ODBC_LFLAGS=-L$ODBC_LIBDIR
+     ODBC_INCLUDE=-I$ODBC_INCDIR
+     ODBC_LIBS=-lesoobclient
+@@ -456,8 +477,11 @@
+     withval=/usr/local
+   fi
+   if test "$withval" != "no"; then
++    for i in lib64 lib; do
++      ODBC_LIBDIR=$withval/$i
++      test -f "$ODBC_LIBDIR/libodbc.a" -o -f "$ODBC_LIBDIR/libodbc.$SHLIB_SUFFIX_NAME" && break
++    done
+     ODBC_INCDIR=$withval/include
+-    ODBC_LIBDIR=$withval/lib
+     ODBC_LFLAGS=-L$ODBC_LIBDIR
+     ODBC_INCLUDE=-I$ODBC_INCDIR
+     ODBC_LIBS=-lodbc
+--- ext/pcre/config0.m4	2005-08-09 19:41:56.000000000 +0200
++++ ext/pcre/config0.m4	2006-02-25 00:53:43.000000000 +0100
+@@ -32,7 +32,7 @@
+       AC_MSG_ERROR([Could not find pcre.h in $PHP_PCRE_REGEX])
+     fi
+ 
+-    for j in $PHP_PCRE_REGEX $PHP_PCRE_REGEX/lib; do
++    for j in $PHP_PCRE_REGEX $PHP_PCRE_REGEX/lib64 $PHP_PCRE_REGEX/lib; do
+       test -f $j/libpcre.a -o -f $j/libpcre.$SHLIB_SUFFIX_NAME && PCRE_LIBDIR=$j
+     done
+     
+--- ext/pgsql/config.m4	2006-01-05 22:53:30.000000000 +0100
++++ ext/pgsql/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -46,7 +46,7 @@
+         fi
+       done
+ 
+-      for j in lib lib/pgsql lib/postgres lib/postgresql ""; do
++      for j in lib64 lib lib64/pgsql lib/pgsql lib64/postgres lib/postgres lib64/postgresql lib/postgresql ""; do
+         if test -f "$i/$j/libpq.so" || test -f "$i/$j/libpq.a"; then 
+           PGSQL_LIBDIR=$i/$j
+         fi
+--- ext/pspell/config.m4	2005-02-17 04:51:50.000000000 +0100
++++ ext/pspell/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -27,7 +27,11 @@
+ 		AC_MSG_ERROR(Cannot find pspell)
+ 	fi
+ 
+-	PSPELL_LIBDIR=$PSPELL_DIR/lib
++    for j in lib64 lib; do
++      if test -d $PSPELL_DIR/$j; then
++        PSPELL_LIBDIR=$PSPELL_DIR/$j
++      fi
++    done
+ 
+ 	PHP_ADD_LIBRARY_WITH_PATH(pspell, $PSPELL_LIBDIR, PSPELL_SHARED_LIBADD)
+ 
+--- ext/readline/config.m4	2005-11-18 16:10:33.000000000 +0100
++++ ext/readline/config.m4	2006-02-25 00:58:04.000000000 +0100
+@@ -34,29 +34,35 @@
+     ])
+   ])
+ 
++  for j in lib64 lib; do
++    if test -d $READLINE_DIR/$j; then
++      READLINE_LIBDIR=$READLINE_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(readline, readline,
+   [
+-    PHP_ADD_LIBRARY_WITH_PATH(readline, $READLINE_DIR/lib, READLINE_SHARED_LIBADD)
++    PHP_ADD_LIBRARY_WITH_PATH(readline, $READLINE_LIBDIR, READLINE_SHARED_LIBADD)
+   ], [
+     AC_MSG_ERROR(readline library not found)
+   ], [
+-    -L$READLINE_DIR/lib $PHP_READLINE_LIBS
++    -L$READLINE_LIBDIR $PHP_READLINE_LIBS
+   ])
+ 
+   PHP_CHECK_LIBRARY(readline, rl_callback_read_char,
+   [
+     AC_DEFINE(HAVE_RL_CALLBACK_READ_CHAR, 1, [ ])
+   ],[],[
+-    -L$READLINE_DIR/lib $PHP_READLINE_LIBS
++    -L$READLINE_LIBDIR $PHP_READLINE_LIBS
+   ])
+ 
+   PHP_CHECK_LIBRARY(history, add_history,
+   [
+-    PHP_ADD_LIBRARY_WITH_PATH(history, $READLINE_DIR/lib, READLINE_SHARED_LIBADD)
++    PHP_ADD_LIBRARY_WITH_PATH(history, $READLINE_LIBDIR, READLINE_SHARED_LIBADD)
+   ], [
+     AC_MSG_ERROR(history library required by readline not found)
+   ], [
+-    -L$READLINE_DIR/lib $PHP_READLINE_LIBS
++    -L$READLINE_LIBDIR $PHP_READLINE_LIBS
+   ])
+ 
+   PHP_NEW_EXTENSION(readline, readline.c, $ext_shared, cli)
+@@ -85,13 +91,19 @@
+     ])
+   ])
+ 
++  for j in lib64 lib; do
++    if test -d $LIBEDIT_DIR/$j; then
++      LIBEDIT_LIBDIR=$LIBEDIT_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(edit, readline,
+   [
+-    PHP_ADD_LIBRARY_WITH_PATH(edit, $LIBEDIT_DIR/lib, READLINE_SHARED_LIBADD)  
++    PHP_ADD_LIBRARY_WITH_PATH(edit, $LIBEDIT_LIBDIR, READLINE_SHARED_LIBADD)  
+   ], [
+     AC_MSG_ERROR(edit library required by readline not found)
+   ], [
+-    -L$READLINE_DIR/lib 
++    -L$READLINE_LIBDIR 
+   ])
+ 
+   PHP_NEW_EXTENSION(readline, readline.c, $ext_shared, cli)
+--- ext/session/config.m4	2003-10-01 04:54:06.000000000 +0200
++++ ext/session/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -24,8 +24,14 @@
+   if test -z "$MM_DIR" ; then
+     AC_MSG_ERROR(cannot find mm library)
+   fi
+-  
+-  PHP_ADD_LIBRARY_WITH_PATH(mm, $MM_DIR/lib, SESSION_SHARED_LIBADD)
++
++  for j in lib64 lib; do
++    if test -d $MM_DIR/$j; then
++      MM_LIBDIR=$MM_DIR/$j
++    fi
++  done
++
++  PHP_ADD_LIBRARY_WITH_PATH(mm, $MM_LIBDIR, SESSION_SHARED_LIBADD)
+   PHP_ADD_INCLUDE($MM_DIR/include)
+   AC_DEFINE(HAVE_LIBMM, 1, [Whether you have libmm])
+ fi
+--- ext/snmp/config.m4	2003-09-23 10:16:47.000000000 +0200
++++ ext/snmp/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -45,8 +45,8 @@
+         test -f $i/snmp/snmp.h                  && SNMP_INCDIR=$i/snmp
+         test -f $i/snmp/include/ucd-snmp/snmp.h && SNMP_INCDIR=$i/snmp/include/ucd-snmp
+       done
+-      for i in /usr /usr/snmp /usr/local /usr/local/snmp; do
+-        test -f $i/lib/libsnmp.a -o -f $i/lib/libsnmp.$SHLIB_SUFFIX_NAME && SNMP_LIBDIR=$i/lib
++      for i in /usr/lib /usr/lib64 /usr/snmp/lib /usr/local/lib /usr/local/snmp/lib; do
++        test -f $i/libsnmp.a -o -f $i/libsnmp.$SHLIB_SUFFIX_NAME && SNMP_LIBDIR=$i
+       done
+     else
+       SNMP_INCDIR=$PHP_SNMP/include
+--- ext/xml/config.m4	2004-12-20 21:38:18.000000000 +0100
++++ ext/xml/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -33,6 +33,10 @@
+     for i in $PHP_XML $PHP_EXPAT_DIR; do
+       if test -f $i/lib/libexpat.a -o -f $i/lib/libexpat.$SHLIB_SUFFIX_NAME ; then
+         EXPAT_DIR=$i
++        EXPAT_LIBDIR=$i/lib
++      elif test -f $i/lib64/libexpat.a -o -f $i/lib64/libexpat.$SHLIB_SUFFIX_NAME ; then
++        EXPAT_DIR=$i
++        EXPAT_LIBDIR=$i/lib64
+       fi
+     done
+ 
+@@ -41,7 +45,7 @@
+     fi
+ 
+     PHP_ADD_INCLUDE($EXPAT_DIR/include)
+-    PHP_ADD_LIBRARY_WITH_PATH(expat, $EXPAT_DIR/lib, XML_SHARED_LIBADD)
++    PHP_ADD_LIBRARY_WITH_PATH(expat, $EXPAT_LIBDIR, XML_SHARED_LIBADD)
+     PHP_SUBST(XML_SHARED_LIBADD)
+   fi
+ fi
+--- ext/xmlrpc/config.m4	2003-10-03 07:25:43.000000000 +0200
++++ ext/xmlrpc/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -29,6 +29,12 @@
+       PHP_ADD_INCLUDE($i/include)
+       testval=yes
+       break
++    elif test -f $i/lib64/libexpat.a -o -f $i/lib64/libexpat.$SHLIB_SUFFIX_NAME; then
++      AC_DEFINE(HAVE_LIBEXPAT2,1,[ ])
++      PHP_ADD_LIBRARY_WITH_PATH(expat, $i/lib64, XMLRPC_SHARED_LIBADD)
++      PHP_ADD_INCLUDE($i/include)
++      testval=yes
++      break
+     fi
+   done
+ 
+@@ -87,6 +93,12 @@
+     AC_MSG_ERROR(Please reinstall the XMLRPC-EPI distribution)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $XMLRPC_DIR/$j; then
++      XMLRPC_LIBDIR=$XMLRPC_DIR/$j
++    fi
++  done
++
+   PHP_ADD_INCLUDE($XMLRPC_DIR)
+-  PHP_ADD_LIBRARY_WITH_PATH(xmlrpc, $XMLRPC_DIR/lib, XMLRPC_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH(xmlrpc, $XMLRPC_LIBDIR, XMLRPC_SHARED_LIBADD)
+ fi
+--- ext/xslt/config.m4	2004-08-18 07:14:16.000000000 +0200
++++ ext/xslt/config.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -104,6 +104,12 @@
+         PHP_ADD_LIBRARY_WITH_PATH(expat, $i/lib, XSLT_SHARED_LIBADD)
+         found_expat=yes
+         break
++      elif test -f $i/lib64/libexpat.a -o -f $i/lib64/libexpat.$SHLIB_SUFFIX_NAME; then
++        AC_DEFINE(HAVE_LIBEXPAT2, 1, [ ])
++        PHP_ADD_INCLUDE($i/include)
++        PHP_ADD_LIBRARY_WITH_PATH(expat, $i/lib64, XSLT_SHARED_LIBADD)
++        found_expat=yes
++        break
+       fi
+     done
+ 
+@@ -124,29 +130,38 @@
+     ])
+      
+     if test "$PHP_SABLOT_JS" != "no"; then
+-      for i in $PHP_SABLOT_JS /usr/local /usr; do
+-        if test -f $i/lib/libjs.a -o -f $i/lib/libjs.$SHLIB_SUFFIX_NAME; then
+-          PHP_SABLOT_JS_DIR=$i
+-          break
+-        fi
++      for j in lib64 lib; do
++        for i in $PHP_SABLOT_JS /usr/local /usr; do
++          if test -f $i/$j/libjs.a -o -f $i/$j/libjs.$SHLIB_SUFFIX_NAME; then
++            PHP_SABLOT_JS_DIR=$i
++            PHP_SABLOT_JS_LIBDIR=$i/$j
++            break
++          fi
++        done
+       done
+ 
+       PHP_CHECK_LIBRARY(js, JS_GetRuntime,
+       [
+-        PHP_ADD_LIBRARY_WITH_PATH(js, $PHP_SABLOT_JS_DIR/lib, XSLT_SHARED_LIBADD)
+-        PHP_SABLOT_JS_LIBS="-L$PHP_SABLOT_JS_DIR/lib -ljs"
++        PHP_ADD_LIBRARY_WITH_PATH(js, $PHP_SABLOT_JS_LIBDIR, XSLT_SHARED_LIBADD)
++        PHP_SABLOT_JS_LIBS="-L$PHP_SABLOT_JS_LIBDIR -ljs"
+       ], [
+         AC_MSG_ERROR([libjs not found. Please check config.log for more information.])
+       ], [
+-        -L$PHP_SABLOT_JS_DIR/lib
++        -L$PHP_SABLOT_JS_LIBDIR
+       ])
+     fi
+ 
++    for j in lib64 lib; do
++      if test -d $XSLT_DIR/$j; then
++        XSLT_LIBDIR=$XSLT_DIR/$j
++      fi
++    done
++
+     PHP_CHECK_LIBRARY(sablot, SablotSetEncoding,
+     [
+       AC_DEFINE(HAVE_SABLOT_SET_ENCODING, 1, [ ])
+     ], [], [
+-      -L$XSLT_DIR/lib $PHP_SABLOT_JS_LIBS
++      -L$XSLT_LIBDIR $PHP_SABLOT_JS_LIBS
+     ])
+ 
+     dnl SablotSetOptions implemented in Sablotron CVS > 2002/10/31
+@@ -154,14 +169,14 @@
+     [
+       AC_DEFINE(HAVE_SABLOT_GET_OPTIONS, 1, [Whether Sablotron supports SablotGetOptions])
+     ], [], [
+-      -L$XSLT_DIR/lib $PHP_SABLOT_JS_LIBS
++      -L$XSLT_LIBDIR $PHP_SABLOT_JS_LIBS
+     ])
+ 
+     AC_DEFINE(HAVE_SABLOT_BACKEND, 1, [ ])
+   fi
+ 
+   PHP_ADD_INCLUDE($XSLT_DIR/include)
+-  PHP_ADD_LIBRARY_WITH_PATH($XSLT_LIBNAME, $XSLT_DIR/lib, XSLT_SHARED_LIBADD)
++  PHP_ADD_LIBRARY_WITH_PATH($XSLT_LIBNAME, $XSLT_LIBDIR, XSLT_SHARED_LIBADD)
+ 
+   AC_DEFINE(HAVE_XSLT, 1, [ ])
+ fi
+--- ext/zlib/config0.m4	2003-07-02 01:54:44.000000000 +0200
++++ ext/zlib/config0.m4	2006-02-25 00:46:20.000000000 +0100
+@@ -36,15 +36,21 @@
+     AC_MSG_ERROR(Cannot find libz)
+   fi
+ 
++  for j in lib64 lib; do
++    if test -d $ZLIB_DIR/$j; then
++      ZLIB_LIBDIR=$ZLIB_DIR/$j
++    fi
++  done
++
+   PHP_CHECK_LIBRARY(z, gzgets, [
+     AC_DEFINE(HAVE_ZLIB,1,[ ]) 
+   ],[
+     AC_MSG_ERROR(ZLIB extension requires zlib >= 1.0.9)
+   ],[
+-    -L$ZLIB_DIR/lib
++    -L$ZLIB_LIBDIR
+   ])
+ 
+-  PHP_ADD_LIBPATH($ZLIB_DIR/lib, ZLIB_SHARED_LIBADD)
++  PHP_ADD_LIBPATH($ZLIB_LIBDIR, ZLIB_SHARED_LIBADD)
+ 
+   PHP_ZLIB_DIR=$ZLIB_DIR
+   PHP_ADD_LIBRARY(z,, ZLIB_SHARED_LIBADD)
+==============================================================================
+Original: php-4-dba_config.patch
+==============================================================================
+--- ext/dba/config.m4	2007-05-04 14:35:44.000000000 +0200
++++ ext/dba/config.m4	2007-05-04 14:37:09.000000000 +0200
+@@ -373,7 +373,7 @@
+ 
+ AC_ARG_WITH(cdb,
+ [  --with-cdb[=DIR]          DBA: Include CDB support],[
+-  if test "$withval" = "yes" -o "$HAVE_DBA" = "1"; then
++  if test "$withval" = "yes" && test "$HAVE_DBA" = "1"; then
+     PHP_DBA_BUILTIN_CDB
+   elif test "$withval" != "no"; then
+     PHP_DBA_STD_BEGIN
+@@ -409,7 +409,7 @@
+     PHP_DBA_STD_ATTACH
+   fi
+ ],[
+-  if test "$PHP_DBA" != "no" -o "$HAVE_DBA" = "1"; then
++  if test "$PHP_DBA" != "no" && test "$HAVE_DBA" = "1"; then
+     PHP_DBA_BUILTIN_CDB
+   fi
+ ])
+@@ -427,7 +427,7 @@
+     PHP_DBA_BUILTIN_INI
+   fi
+ ],[
+-  if test "$PHP_DBA" != "no" -o "$HAVE_DBA" = "1"; then
++  if test "$PHP_DBA" != "no" && test "$HAVE_DBA" = "1"; then
+     PHP_DBA_BUILTIN_INI
+   fi
+ ])
+@@ -448,7 +448,7 @@
+     PHP_DBA_BUILTIN_FLATFILE
+   fi
+ ],[
+-  if test "$PHP_DBA" != "no" -o "$HAVE_DBA" = "1"; then
++  if test "$PHP_DBA" != "no" && test "$HAVE_DBA" = "1"; then
+     PHP_DBA_BUILTIN_FLATFILE
+   fi
+ ])
+==============================================================================
+Original: php-4-gd_namespacing.patch
+==============================================================================
+--- main/php_compat.h	2006-03-11 18:08:54.000000000 +0100
++++ main/php_compat.h	2006-03-11 18:12:16.000000000 +0100
+@@ -137,6 +137,209 @@
+ #define XML_ParserReset php_XML_ParserReset
+ #endif
+ 
++#ifdef HAVE_GD_BUNDLED
++#define any2eucjp php_gd_any2eucjp
++#define createwbmp php_gd_createwbmp
++#define empty_output_buffer php_gd_empty_output_buffer
++#define fill_input_buffer php_gd_fill_input_buffer
++#define freewbmp php_gd_freewbmp
++#define gdAlphaBlend php_gd_gdAlphaBlend
++#define gdCompareInt php_gd_gdCompareInt
++#define gdCosT php_gd_gdCosT
++#define gdCtxPrintf php_gd_gdCtxPrintf
++#define gdDPExtractData php_gd_gdDPExtractData
++#define gdFontGetGiant php_gd_gdFontGetGiant
++#define gdFontGetLarge php_gd_gdFontGetLarge
++#define gdFontGetMediumBold php_gd_gdFontGetMediumBold
++#define gdFontGetSmall php_gd_gdFontGetSmall
++#define gdFontGetTiny php_gd_gdFontGetTiny
++#define gdFontGiant php_gd_gdFontGiant
++#define gdFontGiantData php_gd_gdFontGiantData
++#define gdFontGiantRep php_gd_gdFontGiantRep
++#define gdFontLarge php_gd_gdFontLarge
++#define gdFontLargeData php_gd_gdFontLargeData
++#define gdFontLargeRep php_gd_gdFontLargeRep
++#define gdFontMediumBold php_gd_gdFontMediumBold
++#define gdFontMediumBoldData php_gd_gdFontMediumBoldData
++#define gdFontMediumBoldRep php_gd_gdFontMediumBoldRep
++#define gdFontSmall php_gd_gdFontSmall
++#define gdFontSmallData php_gd_gdFontSmallData
++#define gdFontSmallRep php_gd_gdFontSmallRep
++#define gdFontTiny php_gd_gdFontTiny
++#define gdFontTinyData php_gd_gdFontTinyData
++#define gdFontTinyRep php_gd_gdFontTinyRep
++#define gdGetBuf php_gd_gdGetBuf
++#define gdGetByte php_gd_gdGetByte
++#define gdGetC php_gd_gdGetC
++#define _gdGetColors php_gd__gdGetColors
++#define gd_getin php_gd_gd_getin
++#define gdGetInt php_gd_gdGetInt
++#define gdGetWord php_gd_gdGetWord
++#define gdImageAABlend php_gd_gdImageAABlend
++#define gdImageAALine php_gd_gdImageAALine
++#define gdImageAlphaBlending php_gd_gdImageAlphaBlending
++#define gdImageAntialias php_gd_gdImageAntialias
++#define gdImageArc php_gd_gdImageArc
++#define gdImageBrightness php_gd_gdImageBrightness
++#define gdImageChar php_gd_gdImageChar
++#define gdImageCharUp php_gd_gdImageCharUp
++#define gdImageColor php_gd_gdImageColor
++#define gdImageColorAllocate php_gd_gdImageColorAllocate
++#define gdImageColorAllocateAlpha php_gd_gdImageColorAllocateAlpha
++#define gdImageColorClosest php_gd_gdImageColorClosest
++#define gdImageColorClosestAlpha php_gd_gdImageColorClosestAlpha
++#define gdImageColorClosestHWB php_gd_gdImageColorClosestHWB
++#define gdImageColorDeallocate php_gd_gdImageColorDeallocate
++#define gdImageColorExact php_gd_gdImageColorExact
++#define gdImageColorExactAlpha php_gd_gdImageColorExactAlpha
++#define gdImageColorMatch php_gd_gdImageColorMatch
++#define gdImageColorResolve php_gd_gdImageColorResolve
++#define gdImageColorResolveAlpha php_gd_gdImageColorResolveAlpha
++#define gdImageColorTransparent php_gd_gdImageColorTransparent
++#define gdImageCompare php_gd_gdImageCompare
++#define gdImageContrast php_gd_gdImageContrast
++#define gdImageConvolution php_gd_gdImageConvolution
++#define gdImageCopy php_gd_gdImageCopy
++#define gdImageCopyMerge php_gd_gdImageCopyMerge
++#define gdImageCopyMergeGray php_gd_gdImageCopyMergeGray
++#define gdImageCopyResampled php_gd_gdImageCopyResampled
++#define gdImageCopyResized php_gd_gdImageCopyResized
++#define gdImageCreate php_gd_gdImageCreate
++#define gdImageCreateFromGd php_gd_gdImageCreateFromGd
++#define gdImageCreateFromGd2 php_gd_gdImageCreateFromGd2
++#define gdImageCreateFromGd2Ctx php_gd_gdImageCreateFromGd2Ctx
++#define gdImageCreateFromGd2Part php_gd_gdImageCreateFromGd2Part
++#define gdImageCreateFromGd2PartCtx php_gd_gdImageCreateFromGd2PartCtx
++#define gdImageCreateFromGd2PartPtr php_gd_gdImageCreateFromGd2PartPtr
++#define gdImageCreateFromGd2Ptr php_gd_gdImageCreateFromGd2Ptr
++#define gdImageCreateFromGdCtx php_gd_gdImageCreateFromGdCtx
++#define gdImageCreateFromGdPtr php_gd_gdImageCreateFromGdPtr
++#define gdImageCreateFromGif php_gd_gdImageCreateFromGif
++#define gdImageCreateFromGifCtx php_gd_gdImageCreateFromGifCtx
++#define gdImageCreateFromGifSource php_gd_gdImageCreateFromGifSource
++#define gdImageCreateFromJpeg php_gd_gdImageCreateFromJpeg
++#define gdImageCreateFromJpegCtx php_gd_gdImageCreateFromJpegCtx
++#define gdImageCreateFromJpegPtr php_gd_gdImageCreateFromJpegPtr
++#define gdImageCreateFromPng php_gd_gdImageCreateFromPng
++#define gdImageCreateFromPngCtx php_gd_gdImageCreateFromPngCtx
++#define gdImageCreateFromPngPtr php_gd_gdImageCreateFromPngPtr
++#define gdImageCreateFromPngSource php_gd_gdImageCreateFromPngSource
++#define gdImageCreateFromWBMP php_gd_gdImageCreateFromWBMP
++#define gdImageCreateFromWBMPCtx php_gd_gdImageCreateFromWBMPCtx
++#define gdImageCreateFromWBMPPtr php_gd_gdImageCreateFromWBMPPtr
++#define gdImageCreateFromXbm php_gd_gdImageCreateFromXbm
++#define gdImageCreatePaletteFromTrueColor php_gd_gdImageCreatePaletteFromTrueColor
++#define gdImageCreateTrueColor php_gd_gdImageCreateTrueColor
++#define gdImageDashedLine php_gd_gdImageDashedLine
++#define gdImageDestroy php_gd_gdImageDestroy
++#define gdImageEdgeDetectQuick php_gd_gdImageEdgeDetectQuick
++#define gdImageEllipse php_gd_gdImageEllipse
++#define gdImageEmboss php_gd_gdImageEmboss
++#define gdImageFill php_gd_gdImageFill
++#define gdImageFilledArc php_gd_gdImageFilledArc
++#define gdImageFilledEllipse php_gd_gdImageFilledEllipse
++#define gdImageFilledPolygon php_gd_gdImageFilledPolygon
++#define gdImageFilledRectangle php_gd_gdImageFilledRectangle
++#define _gdImageFillTiled php_gd__gdImageFillTiled
++#define gdImageFillToBorder php_gd_gdImageFillToBorder
++#define gdImageGaussianBlur php_gd_gdImageGaussianBlur
++#define gdImageGd php_gd_gdImageGd
++#define gdImageGd2 php_gd_gdImageGd2
++#define gdImageGd2Ptr php_gd_gdImageGd2Ptr
++#define gdImageGdPtr php_gd_gdImageGdPtr
++#define gdImageGetClip php_gd_gdImageGetClip
++#define gdImageGetPixel php_gd_gdImageGetPixel
++#define gdImageGetTrueColorPixel php_gd_gdImageGetTrueColorPixel
++#define gdImageGif php_gd_gdImageGif
++#define gdImageGifCtx php_gd_gdImageGifCtx
++#define gdImageGifPtr php_gd_gdImageGifPtr
++#define gdImageGrayScale php_gd_gdImageGrayScale
++#define gdImageInterlace php_gd_gdImageInterlace
++#define gdImageJpeg php_gd_gdImageJpeg
++#define gdImageJpegCtx php_gd_gdImageJpegCtx
++#define gdImageJpegPtr php_gd_gdImageJpegPtr
++#define gdImageLine php_gd_gdImageLine
++#define gdImageMeanRemoval php_gd_gdImageMeanRemoval
++#define gdImageNegate php_gd_gdImageNegate
++#define gdImagePaletteCopy php_gd_gdImagePaletteCopy
++#define gdImagePng php_gd_gdImagePng
++#define gdImagePngCtx php_gd_gdImagePngCtx
++#define gdImagePngCtxEx php_gd_gdImagePngCtxEx
++#define gdImagePngEx php_gd_gdImagePngEx
++#define gdImagePngPtr php_gd_gdImagePngPtr
++#define gdImagePngPtrEx php_gd_gdImagePngPtrEx
++#define gdImagePngToSink php_gd_gdImagePngToSink
++#define gdImagePolygon php_gd_gdImagePolygon
++#define gdImageRectangle php_gd_gdImageRectangle
++#define gdImageRotate php_gd_gdImageRotate
++#define gdImageRotate180 php_gd_gdImageRotate180
++#define gdImageRotate270 php_gd_gdImageRotate270
++#define gdImageRotate45 php_gd_gdImageRotate45
++#define gdImageRotate90 php_gd_gdImageRotate90
++#define gdImageSaveAlpha php_gd_gdImageSaveAlpha
++#define gdImageSelectiveBlur php_gd_gdImageSelectiveBlur
++#define gdImageSetAntiAliased php_gd_gdImageSetAntiAliased
++#define gdImageSetAntiAliasedDontBlend php_gd_gdImageSetAntiAliasedDontBlend
++#define gdImageSetBrush php_gd_gdImageSetBrush
++#define gdImageSetClip php_gd_gdImageSetClip
++#define gdImageSetPixel php_gd_gdImageSetPixel
++#define gdImageSetStyle php_gd_gdImageSetStyle
++#define gdImageSetThickness php_gd_gdImageSetThickness
++#define gdImageSetTile php_gd_gdImageSetTile
++#define gdImageSkewX php_gd_gdImageSkewX
++#define gdImageSkewY php_gd_gdImageSkewY
++#define gdImageSmooth php_gd_gdImageSmooth
++#define gdImageString php_gd_gdImageString
++#define gdImageString16 php_gd_gdImageString16
++#define gdImageStringFT php_gd_gdImageStringFT
++#define gdImageStringFTEx php_gd_gdImageStringFTEx
++#define gdImageStringTTF php_gd_gdImageStringTTF
++#define gdImageStringUp php_gd_gdImageStringUp
++#define gdImageStringUp16 php_gd_gdImageStringUp16
++#define gdImageTrueColorToPalette php_gd_gdImageTrueColorToPalette
++#define gdImageWBMP php_gd_gdImageWBMP
++#define gdImageWBMPCtx php_gd_gdImageWBMPCtx
++#define gdImageWBMPPtr php_gd_gdImageWBMPPtr
++#define gdImageXbmCtx php_gd_gdImageXbmCtx
++#define gdNewDynamicCtx php_gd_gdNewDynamicCtx
++#define gdNewDynamicCtxEx php_gd_gdNewDynamicCtxEx
++#define gdNewFileCtx php_gd_gdNewFileCtx
++#define gdNewSSCtx php_gd_gdNewSSCtx
++#define gdPutBuf php_gd_gdPutBuf
++#define gdPutC php_gd_gdPutC
++#define _gdPutColors php_gd__gdPutColors
++#define gdPutInt php_gd_gdPutInt
++#define gd_putout php_gd_gd_putout
++#define gdPutWord php_gd_gdPutWord
++#define gdSeek php_gd_gdSeek
++#define gdSinT php_gd_gdSinT
++#define gd_strtok_r php_gd_gd_strtok_r
++#define gdTell php_gd_gdTell
++#define getmbi php_gd_getmbi
++#define init_destination php_gd_init_destination
++#define init_source php_gd_init_source
++#define jpeg_gdIOCtx_dest php_gd_jpeg_gdIOCtx_dest
++#define jpeg_gdIOCtx_src php_gd_jpeg_gdIOCtx_src
++#define lsqrt php_gd_lsqrt
++#define printwbmp php_gd_printwbmp
++#define Putchar php_gd_Putchar
++#define putmbi php_gd_putmbi
++#define Putword php_gd_Putword
++#define readwbmp php_gd_readwbmp
++#define skipheader php_gd_skipheader
++#define skip_input_data php_gd_skip_input_data
++#define term_destination php_gd_term_destination
++#define term_source php_gd_term_source
++#define writewbmp php_gd_writewbmp
++#define ZeroDataBlock php_gd_ZeroDataBlock
++#define gdCacheCreate php_gd_gdCacheCreate
++#define gdCacheDelete php_gd_gdCacheDelete
++#define gdCacheGet php_gd_gdCacheGet
++#define gdFontCacheSetup php_gd_gdFontCacheSetup
++#define gdFontCacheShutdown php_gd_gdFontCacheShutdown
++#define gdFreeFontCache php_gd_gdFreeFontCache
++#endif /* HAVE_GD_BUNDLED */
++
+ #ifdef PHP_EXPORTS
+ #define PCRE_STATIC
+ #define XML_STATIC
+--- ext/gd/libgd/gd.h	2004-07-23 00:59:11.000000000 +0200
++++ ext/gd/libgd/gd.h	2005-10-09 14:06:27.000000000 +0200
+@@ -5,6 +5,8 @@
+ extern "C" {
+ #endif
+ 
++#include "php_compat.h"
++
+ #ifndef WIN32
+ /* default fontpath for unix systems */
+ #define DEFAULT_FONTPATH "/usr/X11R6/lib/X11/fonts/TrueType:/usr/X11R6/lib/X11/fonts/truetype:/usr/X11R6/lib/X11/fonts/TTF:/usr/share/fonts/TrueType:/usr/share/fonts/truetype:/usr/openwin/lib/X11/fonts/TrueType:/usr/X11R6/lib/X11/fonts/Type1:."
+--- ext/gd/libgd/gdtables.c	2002-04-13 04:03:09.000000000 +0200
++++ ext/gd/libgd/gdtables.c	2005-10-09 14:06:27.000000000 +0200
+@@ -1,4 +1,6 @@
+ 
++#include "php_compat.h"
++
+ int gdCosT[] =
+ {
+   1024,
+--- ext/gd/libgd/wbmp.h	2003-12-28 21:11:08.000000000 +0100
++++ ext/gd/libgd/wbmp.h	2005-10-09 14:06:27.000000000 +0200
+@@ -12,6 +12,7 @@
+ #ifndef __WBMP_H
+ #define __WBMP_H	1
+ 
++#include "php_compat.h"
+ 
+ /* WBMP struct
+ ** -----------
+==============================================================================
+Original: php-4-imap-symlink.patch
+==============================================================================
+--- ext/imap/config.m4	2005-11-30 23:05:52.000000000 +0100
++++ ext/imap/config.m4	2005-11-30 23:06:17.000000000 +0100
+@@ -201,12 +201,6 @@
+       AC_MSG_ERROR(Cannot find rfc822.h. Please check your c-client installation.)
+     fi
+ 
+-    if test -r "$IMAP_DIR/c-client/c-client.a"; then
+-      ln -s "$IMAP_DIR/c-client/c-client.a" "$IMAP_DIR/c-client/libc-client.a" >/dev/null 2>&1
+-    elif test -r "$IMAP_DIR/lib/c-client.a"; then
+-      ln -s "$IMAP_DIR/lib/c-client.a" "$IMAP_DIR/lib/libc-client.a" >/dev/null 2>&1
+-    fi
+-
+     for lib in c-client4 c-client imap; do
+       IMAP_LIB=$lib
+       IMAP_LIB_CHK(lib)
+==============================================================================
+Original: php-4-with-iodbc.patch
+==============================================================================
+--- ext/odbc/php_odbc_includes.h	2005-02-22 17:55:18.000000000 +0000
++++ ext/odbc/php_odbc_includes.h	2005-02-22 17:55:26.000000000 +0000
+@@ -91,8 +91,8 @@
+ #elif defined(HAVE_IODBC) /* iODBC library */
+ 
+ #define ODBC_TYPE "iODBC"
+-#include <isql.h>
+-#include <isqlext.h>
++#include <iodbc/isql.h>
++#include <iodbc/isqlext.h>
+ #define HAVE_SQL_EXTENDED_FETCH 1
+ #define SQL_FD_FETCH_ABSOLUTE   0x00000010L
+ #define SQL_CURSOR_DYNAMIC      2UL
+==============================================================================
+Original: php-4-libtool-1.5.patch
+==============================================================================
+--- acinclude.m4	2005-09-08 13:16:38.000000000 +0200
++++ acinclude.m4	2005-09-08 13:21:09.000000000 +0200
+@@ -783,12 +783,12 @@
+ dnl
+ AC_DEFUN([PHP_BUILD_PROGRAM],[
+   OVERALL_TARGET=[]ifelse($1,,php,$1)
+-  php_c_pre='$(CC)'
++  php_c_pre='$(LIBTOOL) --mode=compile $(CC)'
+   php_c_meta='$(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)'
+-  php_c_post=' && echo > $[@]'
+-  php_cxx_pre='$(CXX)'
++  php_c_post=
++  php_cxx_pre='$(LIBTOOL) --mode=compile $(CXX)'
+   php_cxx_meta='$(COMMON_FLAGS) $(CXXFLAGS_CLEAN) $(EXTRA_CXXFLAGS)'
+-  php_cxx_post=' && echo > $[@]'
++  php_cxx_post=
+   php_lo=o
+ 
+   case $with_pic in
+==============================================================================
+Original: php-4-make_test.patch
+==============================================================================
+--- Makefile.global	2006-08-06 01:58:04.000000000 +0200
++++ Makefile.global	2006-08-06 02:00:23.000000000 +0200
+@@ -51,11 +51,11 @@
+ install-su: install-pear install-tester
+ 
+ test: 
+-	-@if test -x $(SAPI_CLI_PATH) && test ! -z $(SAPI_CLI_PATH); then \
+-		TEST_PHP_EXECUTABLE=$(top_builddir)/$(SAPI_CLI_PATH) \
+-		TEST_PHP_SRCDIR=$(top_srcdir) \
++	-@if test ! -z "$(top_builddir)/php-cli" && test -x "$(top_builddir)/php-cli"; then \
++		TEST_PHP_EXECUTABLE="$(top_builddir)/php-cli" \
++		TEST_PHP_SRCDIR="$(top_srcdir)" \
+ 		CC="$(CC)" \
+-			$(top_builddir)/$(SAPI_CLI_PATH) -d 'open_basedir=' -d 'safe_mode=0' -d 'output_buffering=0' $(top_srcdir)/run-tests.php $(TESTS); \
++			"$(top_builddir)/php-cli" -n -d 'open_basedir=' -d 'safe_mode=0' -d 'output_buffering=0' "$(top_srcdir)/run-tests.php" $(TESTS); \
+ 	else \
+ 		echo "ERROR: Cannot run tests without CLI sapi."; \
+ 	fi
+--- run-tests.php	2006-08-06 17:44:58.000000000 +0200
++++ run-tests.php	2006-08-06 17:57:39.000000000 +0200
+@@ -102,6 +102,17 @@
+ 		putenv("TEST_PHP_EXECUTABLE=$php");
+ 	}
+ }
++
++if (getenv('TEST_PHP_CGI_EXECUTABLE')) {
++	$php_cgi = getenv('TEST_PHP_CGI_EXECUTABLE');
++	if ($php_cgi=='auto') {
++		$php_cgi = $cwd.'/sapi/cgi/php';
++		putenv("TEST_PHP_CGI_EXECUTABLE=$php_cgi");
++	}
++} else {
++	$php_cgi = '';
++}
++
+ if (empty($php) || !file_exists($php)) {
+ 	error("environment variable TEST_PHP_EXECUTABLE must be set to specify PHP executable!");
+ }
+@@ -167,9 +176,9 @@
+ $info_params = array();
+ settings2array($ini_overwrites,$info_params);
+ settings2params($info_params);
+-$php_info = `$php $info_params $info_file`;
++$php_info = `$php -n $info_params $info_file`;
+ @unlink($info_file);
+-define('TESTED_PHP_VERSION', `$php -r 'echo PHP_VERSION;'`);
++define('TESTED_PHP_VERSION', `$php -n -r 'echo PHP_VERSION;'`);
+ 
+ // Write test context information.
+ 
+@@ -208,7 +217,7 @@
+ 		usort($test_files, "test_sort");
+ 		echo "Running selected tests.\n";
+ 		foreach($test_files AS $name) {
+-			$test_results[$name] = run_test($php,$name);
++			$test_results[$name] = run_test($php,$php_cgi,$name);
+ 		}
+ 		if (getenv('REPORT_EXIT_STATUS') == 1 and ereg('FAILED( |$)', implode(' ', $test_results))) {
+ 			exit(1);
+@@ -289,7 +298,7 @@
+ ";
+ 
+ foreach ($test_files as $name) {
+-	$test_results[$name] = run_test($php,$name);
++	$test_results[$name] = run_test($php,$php_cgi,$name);
+ }
+ 
+ $end_time = time();
+@@ -538,7 +547,7 @@
+ //  Run an individual test case.
+ //
+ 
+-function run_test($php,$file)
++function run_test($php,$php_cgi,$file)
+ {
+ 	global $log_format, $info_params, $ini_overwrites;
+ 
+@@ -575,9 +584,9 @@
+ 
+ 	/* For GET/POST tests, check if cgi sapi is available and if it is, use it. */
+ 	if ((!empty($section_text['GET']) || !empty($section_text['POST']))) {
+-		if (file_exists("./sapi/cgi/php")) {
++		if ($php_cgi != '' && file_exists($php_cgi)) {
+ 			$old_php = $php;
+-			$php = realpath("./sapi/cgi/php") . ' -C ';
++			$php = $php_cgi . ' -n -C ';
+ 		}
+ 	}
+ 
+@@ -617,7 +626,7 @@
+ 			$extra = substr(PHP_OS, 0, 3) !== "WIN" ?
+ 				"unset REQUEST_METHOD;": "";
+ 				
+-			$output = `$extra $php $info_params -f $tmp_skipif`;
++			$output = `$extra $php -n $info_params -f $tmp_skipif`;
+ 			@unlink($tmp_skipif);
+ 			if (eregi("^skip", trim($output))) {
+ 				echo "SKIP $tested";
+@@ -686,7 +695,7 @@
+ 		putenv("CONTENT_TYPE=application/x-www-form-urlencoded");
+ 		putenv("CONTENT_LENGTH=$content_length");
+ 
+-		$cmd = "$php$ini_settings -f \"$tmp_file\" 2>&1 < $tmp_post";
++		$cmd = "$php -n$ini_settings -f \"$tmp_file\" 2>&1 < $tmp_post";
+ 
+ 	} else {
+ 
+@@ -694,7 +703,7 @@
+ 		putenv("CONTENT_TYPE=");
+ 		putenv("CONTENT_LENGTH=");
+ 
+-		$cmd = "$php$ini_settings -f \"$tmp_file\" $args 2>&1";
++		$cmd = "$php -n$ini_settings -f \"$tmp_file\" $args 2>&1";
+ 	}
+ 
+ 	if (DETAILED) echo "
+==============================================================================
+Original: php-4-mysql-charsetphpini.patch
+Original: php-4-mysql-ztsclientlib.patch (part)
+==============================================================================
+--- ext/mysql/php_mysql.c	2006-12-01 00:09:12.000000000 +0100
++++ ext/mysql/php_mysql.c	2006-12-01 00:36:39.000000000 +0100
+@@ -353,6 +353,7 @@
+ 	PHP_INI_ENTRY("mysql.default_port",				NULL,	PHP_INI_ALL,		OnMySQLPort)
+ 	STD_PHP_INI_ENTRY("mysql.default_socket",		NULL,	PHP_INI_ALL,		OnUpdateStringUnempty,	default_socket,	zend_mysql_globals,		mysql_globals)
+ 	STD_PHP_INI_ENTRY("mysql.connect_timeout",		"60",	PHP_INI_ALL,		OnUpdateInt,		connect_timeout, 	zend_mysql_globals,		mysql_globals)
++	STD_PHP_INI_ENTRY("mysql.connect_charset",		NULL,	PHP_INI_ALL,		OnUpdateString,		connect_charset,	zend_mysql_globals,		mysql_globals)
+ 	STD_PHP_INI_BOOLEAN("mysql.trace_mode",			"0",	PHP_INI_ALL,		OnUpdateInt,		trace_mode, 		zend_mysql_globals,		mysql_globals)
+ PHP_INI_END()
+ /* }}} */
+@@ -369,6 +370,7 @@
+ 	mysql_globals->connect_errno = 0;
+ 	mysql_globals->connect_error = NULL;
+ 	mysql_globals->connect_timeout = 0;
++	mysql_globals->connect_charset = NULL;
+ 	mysql_globals->trace_mode = 0;
+ 	mysql_globals->result_allocated = 0;
+ }
+@@ -398,13 +398,6 @@
+ 	REGISTER_LONG_CONSTANT("MYSQL_CLIENT_INTERACTIVE", CLIENT_INTERACTIVE, CONST_CS | CONST_PERSISTENT);
+ 	REGISTER_LONG_CONSTANT("MYSQL_CLIENT_IGNORE_SPACE", CLIENT_IGNORE_SPACE, CONST_CS | CONST_PERSISTENT); 
+ 
+-
+-#ifdef ZTS
+-# if MYSQL_VERSION_ID >= 40000
+-	mysql_thread_init();
+-# endif
+-#endif
+-
+ 	return SUCCESS;
+ }
+ /* }}} */
+@@ -413,12 +406,6 @@
+  */
+ PHP_MSHUTDOWN_FUNCTION(mysql)
+ {
+-#ifdef ZTS
+-# if MYSQL_VERSION_ID >= 40000
+-	mysql_thread_end();
+-# endif
+-#endif
+-
+ 	UNREGISTER_INI_ENTRIES();
+ 	return SUCCESS;
+ }
+@@ -481,6 +483,7 @@
+ static void php_mysql_do_connect(INTERNAL_FUNCTION_PARAMETERS, int persistent)
+ {
+ 	char *user=NULL, *passwd=NULL, *host_and_port=NULL, *socket=NULL, *tmp=NULL, *host=NULL;
++	char *connect_charset=NULL;
+ 	char *hashed_details=NULL;
+ 	int hashed_details_length, port = MYSQL_PORT;
+ 	int client_flags = 0;
+@@ -494,6 +497,7 @@
+ 
+ 
+ 	connect_timeout = MySG(connect_timeout);
++	connect_charset = MySG(connect_charset);
+ 
+ 	socket = MySG(default_socket);
+ 
+@@ -660,6 +663,9 @@
+ 			if (connect_timeout != -1)
+ 				mysql_options(&mysql->conn, MYSQL_OPT_CONNECT_TIMEOUT, (const char *)&connect_timeout);
+ 
++			if (connect_charset != NULL)
++				mysql_options(&mysql->conn, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 			if (mysql_real_connect(&mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 			if (mysql_connect(&mysql->conn, host, user, passwd)==NULL) {
+@@ -704,6 +711,9 @@
+ 				signal(SIGPIPE, handler);
+ #endif /* end mysql_ping */
+ #if MYSQL_VERSION_ID > 32199 /* this lets us set the port number */
++				if (connect_charset != NULL)
++					mysql_options(le->ptr, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 				if (mysql_real_connect(le->ptr, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 				if (mysql_connect(le->ptr, host, user, passwd)==NULL) {
+@@ -765,6 +775,9 @@
+ 		if (connect_timeout != -1)
+ 				mysql_options(&mysql->conn, MYSQL_OPT_CONNECT_TIMEOUT, (const char *)&connect_timeout);
+ 
++		if (connect_charset != NULL)
++				mysql_options(&mysql->conn, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 		if (mysql_real_connect(&mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 		if (mysql_connect(&mysql->conn, host, user, passwd)==NULL) {
+--- ext/mysql/php_mysql.h	2006-12-01 00:09:12.000000000 +0100
++++ ext/mysql/php_mysql.h	2006-12-01 00:27:17.000000000 +0100
+@@ -100,6 +100,7 @@
+ 	long default_port;
+ 	char *default_host, *default_user, *default_password;
+ 	char *default_socket;
++	char *connect_charset;
+ 	char *connect_error;
+ 	long connect_errno;
+ 	long connect_timeout;
+==============================================================================
+Original: php-4-session_fixes.patch
+==============================================================================
+--- ext/session/session.c	2007-03-02 00:36:54.000000000 +0100
++++ ext/session/session.c	2007-03-02 00:54:35.000000000 +0100
+@@ -124,7 +124,7 @@
+ 			return FAILURE;
+ 		}
+ 
+-		if (PG(safe_mode) && (!php_checkuid(new_value, NULL, CHECKUID_ALLOW_ONLY_DIR))) {
++		if (PG(safe_mode) && (!php_checkuid(new_value, NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
+ 			return FAILURE;
+    		}
+ 
+@@ -435,7 +435,7 @@
+ 		zval **tmp;
+ 		namelen = *p & (~PS_BIN_UNDEF);
+ 
+-		if (namelen > PS_BIN_MAX || (p + namelen) >= endptr) {
++		if (namelen < 0 || namelen > PS_BIN_MAX || (p + namelen) >= endptr) {
+ 			return FAILURE;
+ 		}
+ 
+--- ext/session/mod_files.c	2007-03-09 11:29:33.000000000 +0100
++++ ext/session/mod_files.c	2007-05-04 14:37:48.000000000 +0200
+@@ -242,11 +242,13 @@
+ 	if (*save_path == '\0') {
+ 		save_path = php_get_temporary_directory();
+ 
+-		if (PG(safe_mode) && (!php_checkuid(save_path, NULL, CHECKUID_ALLOW_ONLY_DIR))) {
+-			return FAILURE;
+-		}
+-		if (php_check_open_basedir(save_path TSRMLS_CC)) {
+-			return FAILURE;
++		if (strcmp(save_path, "/tmp")) {
++			if (PG(safe_mode) && (!php_checkuid(save_path, NULL, CHECKUID_CHECK_FILE_AND_DIR))) {
++				return FAILURE;
++			}
++			if (php_check_open_basedir(save_path TSRMLS_CC)) {
++				return FAILURE;
++			}
+ 		}
+ 	}
+ 	
+==============================================================================
+Original: php-4-std_array_merge_bin_safety.patch
+==============================================================================
+--- ext/standard/array.c	2007-03-16 21:08:25.000000000 +0100
++++ ext/standard/array.c	2007-05-04 14:37:54.000000000 +0200
+@@ -2050,7 +2050,7 @@
+ 				} else {
+ 					(*src_entry)->refcount++;
+ 
+-					zend_hash_update(dest, string_key, strlen(string_key)+1,
++					zend_hash_update(dest, string_key, string_key_len,
+ 									 src_entry, sizeof(zval *), NULL);
+ 				}
+ 				break;
+==============================================================================
+Original: php-4-std_string_wordwrap.patch
+==============================================================================
+--- ext/standard/string.c	2006-08-09 13:13:43.000000000 +0200
++++ ext/standard/string.c	2006-08-09 13:15:24.000000000 +0200
+@@ -664,7 +664,7 @@
+ 				lastspace = current;
+ 			} else if (current - laststart >= linelength && laststart != lastspace) {
+ 				newtext[lastspace] = breakchar[0];
+-				laststart = lastspace;
++				laststart = lastspace + 1;
+ 			}
+ 		}
+ 
+==============================================================================
+Original: php-4-uClibc-have_dn_skipname.patch
+==============================================================================
+Backport from php-5 which will only use the dn_skipname function if the host 
+system supports it (uClibc for example does not).
+
+--- ext/standard/dns.c
++++ ext/standard/dns.c
+@@ -275,6 +275,7 @@ PHP_FUNCTION(checkdnsrr)
+ #define MAXHOSTNAMELEN  256
+ #endif /* MAXHOSTNAMELEN */
+ 
++#if HAVE_DN_SKIPNAME
+ /* {{{ proto int getmxrr(string hostname, array mxhosts [, array weight])
+    Get MX records corresponding to a given Internet host name */
+ PHP_FUNCTION(getmxrr)
+@@ -355,6 +356,7 @@ PHP_FUNCTION(getmxrr)
+ 	RETURN_TRUE;
+ }
+ /* }}} */
++#endif /* HAVE_DN_SKIPNAME */
+ 
+ #endif
+ /*
+--- ext/standard/basic_functions.c
++++ ext/standard/basic_functions.c
+@@ -438,7 +438,9 @@ function_entry basic_functions[] = {
+ 
+ #if HAVE_RES_SEARCH && !(defined(__BEOS__) || defined(PHP_WIN32) || defined(NETWARE))
+ 	PHP_FE(checkdnsrr,														NULL)
++# if HAVE_DN_SKIPNAME
+ 	PHP_FE(getmxrr,second_and_third_args_force_ref)
++# endif
+ #endif
+ 
+ 	PHP_FE(getmyuid,														NULL)
+==============================================================================
+Original: php-4-posix-USE_GNU_for_domainname.patch
+==============================================================================
+--- ext/posix/posix.c	2012-02-02 21:47:09.100443739 -0500
++++ ext/posix/posix.c	2012-02-02 21:47:20.948502499 -0500
+@@ -33,6 +33,10 @@
+ #include <sys/time.h>
+ #endif
+ 
++#ifdef _GNU_SOURCE
++#define __USE_GNU
++#endif
++
+ #include <unistd.h>
+ #include <sys/resource.h>
+ #include <sys/utsname.h>

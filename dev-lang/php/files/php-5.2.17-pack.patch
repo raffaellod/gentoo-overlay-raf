@@ -1,0 +1,597 @@
+==============================================================================
+Original: 001_all_multilib.patch
+==============================================================================
+--- acinclude.m4	2007-08-05 17:24:52.000000000 +0200
++++ acinclude.m4	2007-08-05 17:25:32.000000000 +0200
+@@ -441,7 +441,7 @@
+ dnl Adds a path to linkpath/runpath (LDFLAGS)
+ dnl
+ AC_DEFUN([PHP_ADD_LIBPATH],[
+-  if test "$1" != "/usr/$PHP_LIBDIR" && test "$1" != "/usr/lib"; then
++  if test "$1" != "/usr/$PHP_LIBDIR" && test "$1" != "/usr/lib" && test "$1" != "/usr/lib64"; then
+     PHP_EXPAND_PATH($1, ai_p)
+     ifelse([$2],,[
+       _PHP_ADD_LIBPATH_GLOBAL([$ai_p])
+@@ -2033,7 +2033,7 @@
+ dnl Search for the sendmail binary
+ dnl
+ AC_DEFUN([PHP_PROG_SENDMAIL], [
+-  PHP_ALT_PATH=/usr/bin:/usr/sbin:/usr/etc:/etc:/usr/ucblib:/usr/lib
++  PHP_ALT_PATH=/usr/bin:/usr/sbin:/usr/etc:/etc:/usr/ucblib:/usr/lib:/usr/lib64
+   AC_PATH_PROG(PROG_SENDMAIL, sendmail,[], $PATH:$PHP_ALT_PATH)
+   PHP_SUBST(PROG_SENDMAIL)
+ ])
+==============================================================================
+Original: 002_all_iodbc-gentoo.patch
+==============================================================================
+--- ext/odbc/config.m4	2007-08-05 17:24:52.000000000 +0200
++++ ext/odbc/config.m4	2007-08-05 17:48:59.000000000 +0200
+@@ -374,9 +374,9 @@
+       PHP_IODBC=/usr/local
+     fi
+     PHP_ADD_LIBRARY_WITH_PATH(iodbc, $PHP_IODBC/$PHP_LIBDIR)
+-    PHP_ADD_INCLUDE($PHP_IODBC/include, 1)
++    PHP_ADD_INCLUDE($PHP_IODBC/include/iodbc, 1)
+     ODBC_TYPE=iodbc
+-    ODBC_INCLUDE=-I$PHP_IODBC/include
++    ODBC_INCLUDE=-I$PHP_IODBC/include/iodbc
+     ODBC_LFLAGS=-L$PHP_IODBC/$PHP_LIBDIR
+     ODBC_LIBS=-liodbc
+     AC_DEFINE(HAVE_IODBC,1,[ ])
+==============================================================================
+Original: 003_all_c-client-symlink.patch
+==============================================================================
+--- ext/imap/config.m4	2006-10-21 21:25:24.000000000 +0200
++++ ext/imap/config.m4	2006-10-21 21:26:15.000000000 +0200
+@@ -192,12 +192,6 @@
+       AC_MSG_ERROR(Cannot find rfc822.h. Please check your c-client installation.)
+     fi
+ 
+-    if test -r "$IMAP_DIR/c-client/c-client.a"; then
+-      ln -s "$IMAP_DIR/c-client/c-client.a" "$IMAP_DIR/c-client/libc-client.a" >/dev/null 2>&1
+-    elif test -r "$IMAP_DIR/$PHP_LIBDIR/c-client.a"; then
+-      ln -s "$IMAP_DIR/$PHP_LIBDIR/c-client.a" "$IMAP_DIR/$PHP_LIBDIR/libc-client.a" >/dev/null 2>&1
+-    fi
+-
+     for lib in c-client4 c-client imap; do
+       IMAP_LIB=$lib
+       IMAP_LIB_CHK($PHP_LIBDIR)
+==============================================================================
+Original: 004_all_iodbc-includes-gentoo.patch
+==============================================================================
+For Gentoo-specific paths
+Updated for 5.2.7/5.2.8 on 2008-12-08 by Christian Hoffmann
+Initial author: unknown
+Upstream status: Not sent, Gentoo-specific
+--- ext/odbc/php_odbc_includes.h	Mon Dec 08 19:05:04 2008 +0100
++++ ext/odbc/php_odbc_includes.h	Mon Dec 08 19:08:13 2008 +0100
+@@ -99,9 +99,9 @@
+ #endif
+ 
+ #define ODBC_TYPE "iODBC"
+-#include <sql.h>
+-#include <sqlext.h>
+-#include <iodbcext.h>
++#include <iodbc/sql.h>
++#include <iodbc/sqlext.h>
++#include <iodbc/iodbcext.h>
+ #define HAVE_SQL_EXTENDED_FETCH 1
+ 
+ #elif defined(HAVE_UNIXODBC) /* unixODBC library */
+==============================================================================
+Original: 005_all_mpm-peruser-itk-test.patch
+==============================================================================
+--- sapi/apache2filter/config.m4	2006-02-08 22:13:06.000000000 +0100
++++ sapi/apache2filter/config.m4	2006-02-08 22:14:05.000000000 +0100
+@@ -115,7 +115,7 @@
+     ;;
+   esac
+ 
+-  if test "$APXS_MPM" != "prefork"; then
++  if test "$APXS_MPM" != "prefork" && test "$APXS_MPM" != "peruser" && test "$APXS_MPM" != "itk"; then
+     PHP_BUILD_THREAD_SAFE
+   fi
+   AC_MSG_RESULT(yes)
+--- sapi/apache2handler/config.m4	2006-02-08 22:13:12.000000000 +0100
++++ sapi/apache2handler/config.m4	2006-02-08 22:14:43.000000000 +0100
+@@ -114,7 +114,7 @@
+     ;;
+   esac
+ 
+-  if test "$APXS_MPM" != "prefork"; then
++  if test "$APXS_MPM" != "prefork" && test "$APXS_MPM" != "peruser" && test "$APXS_MPM" != "itk"; then
+     PHP_BUILD_THREAD_SAFE
+   fi
+   AC_MSG_RESULT(yes)
+==============================================================================
+Original: 006_all_mysql-charsetphpini-gentoo.patch
+==============================================================================
+--- ext/mysql/php_mysql.c	2008-02-06 14:22:57.652600900 +0100
++++ ext/mysql/php_mysql.c	2008-02-06 14:24:40.216655403 +0100
+@@ -360,6 +360,7 @@
+ 	PHP_INI_ENTRY("mysql.default_port",				NULL,	PHP_INI_ALL,		OnMySQLPort)
+ 	STD_PHP_INI_ENTRY("mysql.default_socket",		NULL,	PHP_INI_ALL,		OnUpdateStringUnempty,	default_socket,	zend_mysql_globals,		mysql_globals)
+ 	STD_PHP_INI_ENTRY("mysql.connect_timeout",		"60",	PHP_INI_ALL,		OnUpdateLong,		connect_timeout, 	zend_mysql_globals,		mysql_globals)
++	STD_PHP_INI_ENTRY("mysql.connect_charset",		NULL,	PHP_INI_ALL,		OnUpdateString,		connect_charset,	zend_mysql_globals,		mysql_globals)
+ 	STD_PHP_INI_BOOLEAN("mysql.trace_mode",			"0",	PHP_INI_ALL,		OnUpdateLong,		trace_mode, 		zend_mysql_globals,		mysql_globals)
+ PHP_INI_END()
+ /* }}} */
+@@ -376,6 +377,7 @@
+ 	mysql_globals->connect_errno = 0;
+ 	mysql_globals->connect_error = NULL;
+ 	mysql_globals->connect_timeout = 0;
++	mysql_globals->connect_charset = NULL;
+ 	mysql_globals->trace_mode = 0;
+ 	mysql_globals->result_allocated = 0;
+ }
+@@ -515,6 +517,7 @@
+ {
+ 	char *user=NULL, *passwd=NULL, *host_and_port=NULL, *socket=NULL, *tmp=NULL, *host=NULL;
+ 	int  user_len, passwd_len, host_len;
++	char *connect_charset=NULL;
+ 	char *hashed_details=NULL;
+ 	int hashed_details_length, port = MYSQL_PORT;
+ 	int client_flags = 0;
+@@ -527,6 +530,7 @@
+ 
+ 
+ 	connect_timeout = MySG(connect_timeout);
++	connect_charset = MySG(connect_charset);
+ 
+ 	socket = MySG(default_socket);
+ 
+@@ -640,6 +644,9 @@
+ 				mysql_options(&mysql->conn, MYSQL_OPT_CONNECT_TIMEOUT, (const char *)&connect_timeout);
+ 			}
+ 
++			if (connect_charset != NULL)
++				mysql_options(&mysql->conn, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 			if (mysql_real_connect(&mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 			if (mysql_connect(&mysql->conn, host, user, passwd)==NULL) {
+@@ -684,6 +691,9 @@
+ 				signal(SIGPIPE, handler);
+ #endif /* end mysql_ping */
+ #if MYSQL_VERSION_ID > 32199 /* this lets us set the port number */
++				if (connect_charset != NULL)
++					mysql_options(le->ptr, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 				if (mysql_real_connect(le->ptr, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 				if (mysql_connect(le->ptr, host, user, passwd)==NULL) {
+@@ -747,6 +757,9 @@
+ 			mysql_options(&mysql->conn, MYSQL_OPT_CONNECT_TIMEOUT, (const char *)&connect_timeout);
+ 		}
+ 
++		if (connect_charset != NULL)
++			mysql_options(&mysql->conn, MYSQL_SET_CHARSET_NAME, connect_charset);
++
+ 		if (mysql_real_connect(&mysql->conn, host, user, passwd, NULL, port, socket, client_flags)==NULL) {
+ #else
+ 		if (mysql_connect(&mysql->conn, host, user, passwd)==NULL) {
+--- ext/mysql/php_mysql_structs.h	2008-02-06 14:22:57.510605687 +0100
++++ ext/mysql/php_mysql_structs.h	2008-02-06 14:23:27.764590355 +0100
+@@ -103,6 +103,7 @@
+ 	long default_port;
+ 	char *default_host, *default_user, *default_password;
+ 	char *default_socket;
++	char *connect_charset;
+ 	char *connect_error;
+ 	long connect_errno;
+ 	long connect_timeout;
+==============================================================================
+Original: 007_all_mysqli-charsetphpini-gentoo.patch
+==============================================================================
+--- ext/mysqli/mysqli_api.c	2006-12-01 16:30:36.000000000 +0100
++++ ext/mysqli/mysqli_api.c	2006-12-01 16:39:32.000000000 +0100
+@@ -1395,7 +1395,7 @@
+ PHP_FUNCTION(mysqli_real_connect)
+ {
+ 	MY_MYSQL 		*mysql;
+-	char 			*hostname = NULL, *username=NULL, *passwd=NULL, *dbname=NULL, *socket=NULL;
++	char 			*hostname = NULL, *username=NULL, *passwd=NULL, *dbname=NULL, *socket=NULL, *connect_charset=NULL;
+ 	unsigned int 	hostname_len = 0, username_len = 0, passwd_len = 0, dbname_len = 0, socket_len = 0;
+ 	unsigned long 	port=0, flags=0;
+ 	zval			*mysql_link;
+@@ -1436,6 +1436,12 @@
+ 		socket = MyG(default_socket);
+ 	}
+ 
++	connect_charset = MyG(connect_charset);
++
++	if (connect_charset != NULL) {
++		mysql_options(mysql->mysql, MYSQL_SET_CHARSET_NAME, connect_charset);
++	}
++
+ 	if (mysql_real_connect(mysql->mysql,hostname,username,passwd,dbname,port,socket,flags) == NULL) {
+ 		php_mysqli_set_error(mysql_errno(mysql->mysql), (char *) mysql_error(mysql->mysql) TSRMLS_CC);
+ 		php_mysqli_throw_sql_exception( mysql->mysql->net.sqlstate, mysql->mysql->net.last_errno TSRMLS_CC,
+--- ext/mysqli/mysqli.c	2006-12-01 16:30:36.000000000 +0100
++++ ext/mysqli/mysqli.c	2006-12-01 16:38:01.000000000 +0100
+@@ -459,6 +459,7 @@
+ 	STD_PHP_INI_ENTRY("mysqli.default_pw",				NULL,	PHP_INI_ALL,		OnUpdateString,		default_pw,			zend_mysqli_globals,		mysqli_globals)
+ 	STD_PHP_INI_ENTRY("mysqli.default_port",			"3306",	PHP_INI_ALL,		OnUpdateLong,		default_port,		zend_mysqli_globals,		mysqli_globals)
+ 	STD_PHP_INI_ENTRY("mysqli.default_socket",			NULL,	PHP_INI_ALL,		OnUpdateStringUnempty,	default_socket,	zend_mysqli_globals,		mysqli_globals)
++	STD_PHP_INI_ENTRY("mysqli.connect_charset",			NULL,	PHP_INI_ALL,		OnUpdateString,		connect_charset,	zend_mysqli_globals,		mysqli_globals)
+ 	STD_PHP_INI_BOOLEAN("mysqli.reconnect",				"0",	PHP_INI_SYSTEM,		OnUpdateLong,		reconnect,			zend_mysqli_globals,		mysqli_globals)
+ PHP_INI_END()
+ 
+@@ -475,6 +476,7 @@
+ 	mysqli_globals->default_user = NULL;
+ 	mysqli_globals->default_pw = NULL;
+ 	mysqli_globals->default_socket = NULL;
++	mysqli_globals->connect_charset = NULL;
+ 	mysqli_globals->reconnect = 0;
+ 	mysqli_globals->report_mode = 0;
+ 	mysqli_globals->report_ht = 0;
+--- ext/mysqli/mysqli_nonapi.c	2006-12-01 16:30:36.000000000 +0100
++++ ext/mysqli/mysqli_nonapi.c	2006-12-01 16:40:29.000000000 +0100
+@@ -36,7 +36,7 @@
+ 	MY_MYSQL 			*mysql;
+ 	MYSQLI_RESOURCE 	*mysqli_resource;
+ 	zval  				*object = getThis();
+-	char 				*hostname = NULL, *username=NULL, *passwd=NULL, *dbname=NULL, *socket=NULL;
++	char 				*hostname = NULL, *username=NULL, *passwd=NULL, *dbname=NULL, *socket=NULL, *connect_charset=NULL;
+ 	unsigned int 		hostname_len = 0, username_len = 0, passwd_len = 0, dbname_len = 0, socket_len = 0;
+ 	long				port=0;
+ 
+@@ -88,6 +88,12 @@
+ 		socket = MyG(default_socket);
+ 	}
+ 
++	connect_charset = MyG(connect_charset);
++
++	if (connect_charset != NULL) {
++		mysql_options(mysql->mysql, MYSQL_SET_CHARSET_NAME, connect_charset);
++	}
++
+ 	if (mysql_real_connect(mysql->mysql,hostname,username,passwd,dbname,port,socket,CLIENT_MULTI_RESULTS) == NULL) {
+ 		/* Save error messages */
+ 
+--- ext/mysqli/php_mysqli.h	2006-12-01 16:30:36.000000000 +0100
++++ ext/mysqli/php_mysqli.h	2006-12-01 16:36:23.000000000 +0100
+@@ -433,6 +433,7 @@
+ 	char			*default_user;
+ 	char			*default_socket;
+ 	char            *default_pw;
++	char			*connect_charset;
+ 	int				reconnect;
+ 	int				strict;
+ 	long			error_no;
+==============================================================================
+Original: 008_all_pdo_mysql-charsetphpini-gentoo.patch
+==============================================================================
+--- ext/pdo_mysql/mysql_driver.c	2006-12-02 17:26:53.000000000 +0100
++++ ext/pdo_mysql/mysql_driver.c	2006-12-02 17:27:12.000000000 +0100
+@@ -436,6 +436,7 @@
+ 	pdo_mysql_db_handle *H;
+ 	int i, ret = 0;
+ 	char *host = NULL, *unix_socket = NULL;
++	char *connect_charset = NULL;
+ 	unsigned int port = 3306;
+ 	char *dbname;
+ 	struct pdo_data_src_parser vars[] = {
+@@ -546,6 +547,13 @@
+ 	if (vars[2].optval && !strcmp("localhost", vars[2].optval)) {
+ 		unix_socket = vars[4].optval;  
+ 	}
++
++	connect_charset = PDOMYSQLG(connect_charset);
++
++	if (connect_charset != NULL) {
++		mysql_options(H->server, MYSQL_SET_CHARSET_NAME, connect_charset);
++	}
++
+ 	if (mysql_real_connect(H->server, host, dbh->username, dbh->password, dbname, port, unix_socket, connect_opts) == NULL) {
+ 		pdo_mysql_error(dbh);
+ 		goto cleanup;
+--- ext/pdo_mysql/pdo_mysql.c	2006-12-02 17:26:53.000000000 +0100
++++ ext/pdo_mysql/pdo_mysql.c	2006-12-02 17:27:12.000000000 +0100
+@@ -30,6 +30,9 @@
+ #include "php_pdo_mysql.h"
+ #include "php_pdo_mysql_int.h"
+ 
++ZEND_DECLARE_MODULE_GLOBALS(pdo_mysql)
++static PHP_GINIT_FUNCTION(pdo_mysql);
++
+ /* {{{ pdo_mysql_functions[] */
+ zend_function_entry pdo_mysql_functions[] = {
+ 	{NULL, NULL, NULL}
+@@ -61,7 +64,11 @@
+ 	NULL,
+ 	PHP_MINFO(pdo_mysql),
+ 	"1.0.2",
+-	STANDARD_MODULE_PROPERTIES
++	PHP_MODULE_GLOBALS(pdo_mysql),
++	PHP_GINIT(pdo_mysql),
++	NULL,
++	NULL,
++	STANDARD_MODULE_PROPERTIES_EX
+ };
+ /* }}} */
+ 
+@@ -69,12 +76,23 @@
+ ZEND_GET_MODULE(pdo_mysql)
+ #endif
+ 
++PHP_INI_BEGIN()
++	STD_PHP_INI_ENTRY("pdo_mysql.connect_charset",	NULL,	PHP_INI_ALL,	OnUpdateString,	connect_charset,	zend_pdo_mysql_globals,	pdo_mysql_globals)
++PHP_INI_END()
++
++static PHP_GINIT_FUNCTION(pdo_mysql)
++{
++	pdo_mysql_globals->connect_charset = NULL;
++}
++
+ /* true global environment */
+ 
+ /* {{{ PHP_MINIT_FUNCTION
+  */
+ PHP_MINIT_FUNCTION(pdo_mysql)
+ {
++	REGISTER_INI_ENTRIES();
++
+ 	REGISTER_PDO_CLASS_CONST_LONG("MYSQL_ATTR_USE_BUFFERED_QUERY", (long)PDO_MYSQL_ATTR_USE_BUFFERED_QUERY);
+ 	REGISTER_PDO_CLASS_CONST_LONG("MYSQL_ATTR_LOCAL_INFILE", (long)PDO_MYSQL_ATTR_LOCAL_INFILE);
+ 	REGISTER_PDO_CLASS_CONST_LONG("MYSQL_ATTR_INIT_COMMAND", (long)PDO_MYSQL_ATTR_INIT_COMMAND);
+@@ -91,6 +109,7 @@
+  */
+ PHP_MSHUTDOWN_FUNCTION(pdo_mysql)
+ {
++	UNREGISTER_INI_ENTRIES();
+ 	php_pdo_unregister_driver(&pdo_mysql_driver);
+ 	return SUCCESS;
+ }
+@@ -103,6 +122,8 @@
+ 	php_info_print_table_start();
+ 	php_info_print_table_header(2, "PDO Driver for MySQL, client library version", mysql_get_client_info());
+ 	php_info_print_table_end();
++
++	DISPLAY_INI_ENTRIES();
+ }
+ /* }}} */
+ 
+--- ext/pdo_mysql/php_pdo_mysql.h	2006-12-02 17:26:53.000000000 +0100
++++ ext/pdo_mysql/php_pdo_mysql.h	2006-12-02 17:28:49.000000000 +0100
+@@ -40,6 +40,18 @@
+ PHP_RSHUTDOWN_FUNCTION(pdo_mysql);
+ PHP_MINFO_FUNCTION(pdo_mysql);
+ 
++ZEND_BEGIN_MODULE_GLOBALS(pdo_mysql)
++	char	*connect_charset;
++ZEND_END_MODULE_GLOBALS(pdo_mysql)
++
++#ifdef ZTS
++# define PDOMYSQLG(v) TSRMG(pdo_mysql_globals_id, zend_pdo_mysql_globals *, v)
++#else
++# define PDOMYSQLG(v) (pdo_mysql_globals.v)
++#endif
++
++ZEND_EXTERN_MODULE_GLOBALS(pdo_mysql)
++
+ #endif	/* PHP_PDO_MYSQL_H */
+ 
+ 
+==============================================================================
+Original: 011_all_gmp_bits_per_mp_limb.patch
+==============================================================================
+--- ext/gmp/gmp.c	2010-07-25 01:23:58.000000000 +0200
++++ ext/gmp/gmp.c	2010-07-25 01:30:18.000000000 +0200
+@@ -1396,7 +1396,7 @@
+ 
+ 		GMPG(rand_initialized) = 1;
+ 	}
+-	mpz_urandomb(*gmpnum_result, GMPG(rand_state), GMP_ABS (limiter) * __GMP_BITS_PER_MP_LIMB);
++	mpz_urandomb(*gmpnum_result, GMPG(rand_state), GMP_ABS (limiter) * GMP_LIMB_BITS);
+ 
+ 	ZEND_REGISTER_RESOURCE(return_value, gmpnum_result, le_gmp);
+ }
+==============================================================================
+Original: 014_all_ldap--as-needed.patch
+==============================================================================
+# Allow ext/ldap to compile with --as-needed
+# Patch by Peter Volkov <pva@gentoo.org>, bug 212679
+--- ext/ldap/config.m4.orig	2008-05-05 23:43:07.000000000 +0400
++++ ext/ldap/config.m4	2008-05-05 23:44:22.000000000 +0400
+@@ -49,6 +49,8 @@
+   else
+     SASL_LIB="-L$LDAP_SASL_LIBDIR -lsasl2"
+   fi
++  _SAVE_LIBS_SASL=$LIBS
++  LIBS="$LIBS $SASL_LIB"
+   
+   PHP_CHECK_LIBRARY(ldap, sasl_version,
+   [
+@@ -60,6 +62,7 @@
+   ], [
+     $LDAP_SHARED_LIBADD $SASL_LIB
+   ])
++  LIBS=$_SAVE_LIBS_SASL
+ ])
+ 
+ PHP_ARG_WITH(ldap,for LDAP support,
+==============================================================================
+Original: 015_all_enable-getopt-long-gentoo.patch
+==============================================================================
+enable-getopt-long.patch
+Based on http://www.pastie.org/496695 (thansen on Freenode)
+Improved by hoffie@gentoo.org
+--- ext/standard/basic_functions.c	Fri Jun 19 16:01:59 2009 +0200
++++ ext/standard/basic_functions.c	Fri Jun 19 16:11:09 2009 +0200
+@@ -87,7 +87,7 @@
+ # include <sys/loadavg.h>
+ #endif
+ 
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ #include <getopt.h>
+ #endif
+ 
+@@ -4538,7 +4538,7 @@
+ }
+ /* }}} */
+ 
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ /* {{{ free_longopts
+    Free the memory allocated to an longopt array. */
+ static void free_longopts(struct option *longopts)
+@@ -4566,7 +4566,7 @@
+ 	int argc = 0, options_len = 0, o;
+ 	zval *val, **args = NULL, *p_longopts = NULL;
+ 	int optname_len = 0;
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ 	struct option *longopts = NULL;
+ 	int longindex = 0;
+ #endif
+@@ -4630,7 +4630,7 @@
+ 	}
+ 
+ 	if(p_longopts) {
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ 		int len, c = zend_hash_num_elements(Z_ARRVAL_P(p_longopts));
+ 		struct option *p;
+ 		zval **entry;
+@@ -4695,7 +4695,7 @@
+ 	optind = 1;
+ 
+ 	/* Invoke getopt(3) on the argument array. */
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ 	while ((o = getopt_long(argc, argv, options, longopts, &longindex)) != -1) {
+ #else
+ 	while ((o = getopt(argc, argv, options)) != -1) {
+@@ -4707,7 +4707,7 @@
+ 
+ 		/* Prepare the option character and the argument string. */
+ 		if(o == 0) {
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ 			optname = (char *)longopts[longindex].name;
+ #else                      
+ 			/* o == 0 shall never happen so this only fixes a compiler warning */
+@@ -4753,7 +4753,7 @@
+ 	}
+ 
+ 	free_argv(argv, argc);
+-#ifdef HARTMUT_0
++#ifdef HAVE_GETOPT_LONG
+ 	free_longopts(longopts);
+ #endif
+ }
+--- ext/standard/config.m4	Fri Jun 19 16:01:59 2009 +0200
++++ ext/standard/config.m4	Fri Jun 19 16:11:09 2009 +0200
+@@ -297,11 +297,11 @@
+   AC_MSG_RESULT(no)
+ fi
+ 
+-dnl getopt long options disabled for now
+-dnl as we can't be sure that we get the right getopt.h here
+-dnl using the standard AC_CHECK macros
+-dnl AC_CHECK_HEADERS(getopt.h)
+-dnl AC_CHECK_FUNCS(getopt_long getopt_long_only)
++dnl (Gentoo-specific, disabled in upstream version)
++dnl We seem to be shipping a recent enough glibc and it's enabled on
++dnl fbsd ports as well
++AC_CHECK_HEADERS(getopt.h)
++AC_CHECK_FUNCS(getopt_long getopt_long_only)
+ 
+ if test "$PHP_SAPI" = "cgi" || test "$PHP_SAPI" = "cli" || test "$PHP_SAPI" = "embed"; then
+   AC_DEFINE(ENABLE_CHROOT_FUNC, 1, [Whether to enable chroot() function])
+==============================================================================
+https://bugs.php.net/bug.php?id=60986
+https://bugs.gentoo.org/show_bug.cgi?id=402357
+==============================================================================
+--- ext/pcre/php_pcre.c	2012-01-01 14:15:04.000000000 +0100
++++ ext/pcre/php_pcre.c	2012-02-06 13:31:36.198935107 +0100
+@@ -252,10 +252,11 @@
+ 	   back the compiled pattern, otherwise go on and compile it. */
+ 	if (zend_hash_find(&PCRE_G(pcre_cache), regex, regex_len+1, (void **)&pce) == SUCCESS) {
+ 		/*
+-		 * We use a quick pcre_info() check to see whether cache is corrupted, and if it
++		 * We use a quick pcre_fullinfo() check to see whether cache is corrupted, and if it
+ 		 * is, we flush it and compile the pattern from scratch.
+ 		 */
+-		if (pcre_info(pce->re, NULL, NULL) == PCRE_ERROR_BADMAGIC) {
++		int count = 0;
++		if (pcre_fullinfo(pce->re, NULL, PCRE_INFO_CAPTURECOUNT, &count) == PCRE_ERROR_BADMAGIC) {
+ 			zend_hash_clean(&PCRE_G(pcre_cache));
+ 		} else {
+ #if HAVE_SETLOCALE
+--- ext/pcre/php_pcre.def	2009-01-11 14:59:00.000000000 +0100
++++ ext/pcre/php_pcre.def	2012-02-06 13:31:47.775299315 +0100
+@@ -4,7 +4,6 @@
+ php_pcre_exec
+ php_pcre_get_substring
+ php_pcre_get_substring_list
+-php_pcre_info
+ php_pcre_maketables
+ php_pcre_study
+ php_pcre_version
+--- main/php_compat.h	2012-01-01 14:15:04.000000000 +0100
++++ main/php_compat.h	2012-02-06 13:26:59.272834580 +0100
+@@ -34,7 +34,6 @@
+ #define pcre_exec			php_pcre_exec
+ #define pcre_get_substring		php_pcre_get_substring
+ #define pcre_get_substring_list		php_pcre_get_substring_list
+-#define pcre_info			php_pcre_info
+ #define pcre_maketables			php_pcre_maketables
+ #define pcre_study			php_pcre_study
+ #define pcre_version			php_pcre_version
+==============================================================================
+https://code.google.com/p/php52-backports/issues/detail?id=16
+==============================================================================
+--- ext/dom/node.c	2012-08-06 17:49:48.826716692 +0800
++++ ext/dom/node.c	2012-08-06 17:52:47.633484660 +0800
+@@ -1895,9 +1895,17 @@ static void dom_canonicalization(INTERNA
+         RETVAL_FALSE;
+     } else {
+ 		if (mode == 0) {
++#ifdef LIBXML2_NEW_BUFFER
++            ret = xmlOutputBufferGetSize(buf);
++#else
+ 			ret = buf->buffer->use;
++#endif
+ 			if (ret > 0) {
++#ifdef LIBXML2_NEW_BUFFER
++                RETVAL_STRINGL((char *) xmlOutputBufferGetContent(buf), ret, 1);
++#else
+ 				RETVAL_STRINGL((char *) buf->buffer->content, ret, 1);
++#endif
+ 			} else {
+ 				RETVAL_EMPTY_STRING();
+ 			}
+--- ext/dom/documenttype.c	2012-08-06 18:02:16.019640870 +0800
++++ ext/dom/documenttype.c	2012-08-06 18:06:16.612228905 +0800
+@@ -205,7 +205,13 @@ int dom_documenttype_internal_subset_rea
+ 		if (buff != NULL) {
+ 			xmlNodeDumpOutput (buff, NULL, (xmlNodePtr) intsubset, 0, 0, NULL);
+ 			xmlOutputBufferFlush(buff);
++
++#ifdef LIBXML2_NEW_BUFFER
++			ZVAL_STRINGL(*retval, xmlOutputBufferGetContent(buff),
++			             xmlOutputBufferGetSize(buff), 1);
++#else
+ 			ZVAL_STRINGL(*retval, buff->buffer->content, buff->buffer->use, 1);
++#endif
+ 			(void)xmlOutputBufferClose(buff);
+ 			return SUCCESS;
+ 		}
+--- ext/simplexml/simplexml.c	2012-08-06 18:10:44.621017026 +0800
++++ ext/simplexml/simplexml.c	2012-08-06 18:12:48.016270419 +0800
+@@ -1417,7 +1417,12 @@ SXE_METHOD(asXML)
+ 
+ 			xmlNodeDumpOutput(outbuf, (xmlDocPtr) sxe->document->ptr, node, 0, 0, ((xmlDocPtr) sxe->document->ptr)->encoding);
+ 			xmlOutputBufferFlush(outbuf);
++#ifdef LIBXML2_NEW_BUFFER
++			RETVAL_STRINGL((char *)xmlOutputBufferGetContent(outbuf),
++			               xmlOutputBufferGetSize(outbuf), 1);
++#else
+ 			RETVAL_STRINGL((char *)outbuf->buffer->content, outbuf->buffer->use, 1);
++#endif
+ 			xmlOutputBufferClose(outbuf);
+ 		}
+ 	} else {
