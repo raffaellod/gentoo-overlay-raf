@@ -1,18 +1,19 @@
 # Copyright 1999-2009 Gentoo Foundation
-# Copyright 2012 Raffaello D. Di Napoli <rafdev@dinapo.li>
+# Copyright 2012, 2022 Raffaello D. Di Napoli <rafdev@dinapo.li>
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=5
+EAPI=6
 
-DESCRIPTION='The PHP language runtime engine: CLI, CGI and Apache2 SAPIs.'
+DESCRIPTION='Museum version of the PHP language runtime engine.'
 HOMEPAGE='http://php.net/'
 LICENSE=PHP-3
 
+RESTRICT='mirror'
 KEYWORDS='alpha amd64 arm hppa ia64 ppc ppc64 s390 sh sparc x86 x86-fbsd'
-SLOT="4.9"
+SLOT=4.9
 PHP_MV=${PV%%.*}
 
-SRC_URI="http://www.php.net/distributions/${P}.tar.bz2"
+SRC_URI="https://museum.php.net/php4/${P}.tar.bz2"
 
 SAPIS="cli cgi apache2"
 CGI_SAPI_USE="discard-path force-cgi-redirect"
