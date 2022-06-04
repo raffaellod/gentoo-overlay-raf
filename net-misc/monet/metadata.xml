@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+  <maintainer type="person">
+    <email>rafdev@dinapo.li</email>
+    <name>Raffaello D. Di Napoli</name>
+  </maintainer>
+  <use>
+    <flag name="dhcp">Install DHCP client support, using dhcpcd or BusyBox’s udhcpc</flag>
+    <flag name="dhcpd">Install DHCP server support, using dnsmasq or BusyBox’s udhcpd</flag>
+  </use>
+</pkgmetadata>
