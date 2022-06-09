@@ -1,4 +1,4 @@
-# Copyright 2021-2022 Raffaello D. Di Napoli <rafdev@dinapo.li>
+# Copyright 2021-2023 Raffaello D. Di Napoli <rafdev@dinapo.li>
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
@@ -36,6 +36,9 @@ src_install() {
 		newinitd init.d/${PN}-dhcpd ${PN}-dhcpd
 		newinitd init.d/${PN}-dnsmasq ${PN}-dnsmasq
 	fi
+
+	insinto /etc/${PN}
+	doins conf/monet.conf.example
 
 	insinto /lib/${PN}
 	doins lib/shared.shlib
