@@ -1,4 +1,4 @@
-# Copyright 2021-2023 Raffaello D. Di Napoli <rafdev@dinapo.li>
+# Copyright 2021-2024 Raffaello D. Di Napoli <rafdev@dinapo.li>
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=7
