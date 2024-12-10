@@ -21,7 +21,7 @@ SRC_URI="https://github.com/OpenHantek/OpenHantek6022/archive/${PV}.tar.gz -> ${
 
 BDEPEND="
 	>=dev-qt/linguist-tools-5.4
-	>=dev-util/cmake-3.5
+	>=dev-build/cmake-3.5
 "
 RDEPEND="
 	>=dev-qt/qtopengl-5.4
