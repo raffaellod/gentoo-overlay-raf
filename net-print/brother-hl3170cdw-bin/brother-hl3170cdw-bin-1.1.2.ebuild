@@ -3,11 +3,11 @@
 # Brother Print filter
 # Copyright (C) 2005-2012 Brother. Industries, Ltd.
 
-EAPI=6
+EAPI=7
 DESCRIPTION='Driver for Brother HL-3170CDW printers'
 HOMEPAGE='http://support.brother.com'
 
-inherit eutils rpm linux-info multilib
+inherit rpm linux-info multilib
 
 # Links from http://support.brother.com/g/s/id/linux/en/download_prn.html#HL-3170CDW
 SRC_URI='
