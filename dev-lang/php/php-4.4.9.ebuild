@@ -2,7 +2,7 @@
 # Copyright 2012, 2022 Raffaello D. Di Napoli <rafdev@dinapo.li>
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=6
+EAPI=7
 
 DESCRIPTION='Museum version of the PHP language runtime engine.'
 HOMEPAGE='http://php.net/'
@@ -114,7 +114,7 @@ PDEPEND="
 	sqlite? ( dev-php${PHP_MV}/pecl-sqlite )
 "
 
-inherit apache-module autotools depend.apache eutils flag-o-matic libtool toolchain-funcs
+inherit apache-module autotools depend.apache flag-o-matic libtool toolchain-funcs
 
 want_apache2
 

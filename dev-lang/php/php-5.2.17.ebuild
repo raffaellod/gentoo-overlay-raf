@@ -2,7 +2,7 @@
 # Copyright 2012, 2022 Raffaello D. Di Napoli <rafdev@dinapo.li>
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=6
+EAPI=7
 
 DESCRIPTION='Museum version of the PHP language runtime engine.'
 HOMEPAGE='http://php.net/'
@@ -125,7 +125,7 @@ PDEPEND="
 	doc? ( app-doc/php-docs )
 "
 
-inherit apache-module autotools depend.apache eutils flag-o-matic libtool
+inherit apache-module autotools depend.apache flag-o-matic libtool
 
 want_apache
 
