@@ -21,6 +21,7 @@ IUSE='dhcp dhcpd ipv6'
 RESTRICT='mirror'
 
 RDEPEND="
+	sys-apps/openrc
 	|| ( sys-apps/iproute2 sys-apps/busybox[ip,ipv6?] )
 	dhcp? ( || ( net-misc/dhcpcd[ipv6?] sys-apps/busybox[dhcp,ipv6?] ) )
 	dhcpd? ( || ( net-dns/dnsmasq[dhcp,ipv6?] sys-apps/busybox[dhcpd,ipv6?] ) )
